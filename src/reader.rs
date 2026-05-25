@@ -1,5 +1,7 @@
 use std::rc::Rc;
 
+use im_rc::{HashMap as PersistentMap, HashSet as PersistentSet, Vector as PersistentVector};
+
 use crate::error::Error;
 use crate::value::{InternedSymbol, Value, list_from_vec};
 
@@ -28,6 +30,11 @@ pub fn read_one(source: &str) -> Result<Value, Error> {
 enum Token {
     LParen,
     RParen,
+    LBracket,
+    RBracket,
+    LBrace,
+    RBrace,
+    HashBrace,
     Quote,
     Symbol(String),
     Keyword(String),
@@ -59,37 +66,35 @@ fn tokenize(source: &str) -> Result<Vec<Token>, Error> {
                 tokens.push(Token::RParen);
                 i += 1;
             }
+            '[' => {
+                tokens.push(Token::LBracket);
+                i += 1;
+            }
+            ']' => {
+                tokens.push(Token::RBracket);
+                i += 1;
+            }
+            '{' => {
+                tokens.push(Token::LBrace);
+                i += 1;
+            }
+            '}' => {
+                tokens.push(Token::RBrace);
+                i += 1;
+            }
+            '#' if i + 1 < chars.len() && chars[i + 1] == '{' => {
+                tokens.push(Token::HashBrace);
+                i += 2;
+            }
             '\'' => {
                 tokens.push(Token::Quote);
                 i += 1;
             }
 
             '"' => {
-                i += 1;
-                let mut s = String::new();
-                while i < chars.len() && chars[i] != '"' {
-                    if chars[i] == '\\' && i + 1 < chars.len() {
-                        i += 1;
-                        match chars[i] {
-                            'n' => s.push('\n'),
-                            't' => s.push('\t'),
-                            '\\' => s.push('\\'),
-                            '"' => s.push('"'),
-                            c => {
-                                s.push('\\');
-                                s.push(c);
-                            }
-                        }
-                    } else {
-                        s.push(chars[i]);
-                    }
-                    i += 1;
-                }
-                if i >= chars.len() {
-                    return Err(Error::runtime("unterminated string"));
-                }
-                i += 1; // closing quote
+                let (s, next) = read_string_literal(&chars, i + 1)?;
                 tokens.push(Token::StringLit(s));
+                i = next;
             }
 
             ':' => {
@@ -139,6 +144,33 @@ fn tokenize(source: &str) -> Result<Vec<Token>, Error> {
     Ok(tokens)
 }
 
+fn read_string_literal(chars: &[char], start: usize) -> Result<(String, usize), Error> {
+    let mut i = start;
+    let mut s = String::new();
+    while i < chars.len() && chars[i] != '"' {
+        if chars[i] == '\\' && i + 1 < chars.len() {
+            i += 1;
+            match chars[i] {
+                'n' => s.push('\n'),
+                't' => s.push('\t'),
+                '\\' => s.push('\\'),
+                '"' => s.push('"'),
+                c => {
+                    s.push('\\');
+                    s.push(c);
+                }
+            }
+        } else {
+            s.push(chars[i]);
+        }
+        i += 1;
+    }
+    if i >= chars.len() {
+        return Err(Error::runtime("unterminated string"));
+    }
+    Ok((s, i + 1))
+}
+
 fn is_symbol_start(c: char) -> bool {
     c.is_alphabetic() || matches!(c, '_' | '!' | '?' | '*' | '/' | '<' | '>' | '=' | '%')
 }
@@ -167,6 +199,11 @@ fn read_form(tokens: &[Token], pos: usize) -> Result<(Value, usize), Error> {
     match &tokens[pos] {
         Token::LParen => read_list(tokens, pos + 1),
         Token::RParen => Err(Error::runtime("unexpected ')'")),
+        Token::LBracket => read_vector(tokens, pos + 1),
+        Token::RBracket => Err(Error::runtime("unexpected ']'")),
+        Token::LBrace => read_map(tokens, pos + 1),
+        Token::RBrace => Err(Error::runtime("unexpected '}'")),
+        Token::HashBrace => read_set(tokens, pos + 1),
         Token::Quote => {
             let (val, next) = read_form(tokens, pos + 1)?;
             let behold = Value::Symbol(InternedSymbol::new("behold"));
@@ -200,6 +237,58 @@ fn read_list(tokens: &[Token], mut pos: usize) -> Result<(Value, usize), Error> 
         }
         let (val, next) = read_form(tokens, pos)?;
         items.push(val);
+        pos = next;
+    }
+}
+
+fn read_vector(tokens: &[Token], mut pos: usize) -> Result<(Value, usize), Error> {
+    let mut items = PersistentVector::new();
+    loop {
+        if pos >= tokens.len() {
+            return Err(Error::runtime("unterminated vector, expected ']'"));
+        }
+        if tokens[pos] == Token::RBracket {
+            return Ok((Value::Vector(Rc::new(items)), pos + 1));
+        }
+        let (val, next) = read_form(tokens, pos)?;
+        items.push_back(val);
+        pos = next;
+    }
+}
+
+fn read_map(tokens: &[Token], mut pos: usize) -> Result<(Value, usize), Error> {
+    let mut entries = PersistentMap::new();
+    loop {
+        if pos >= tokens.len() {
+            return Err(Error::runtime("unterminated map, expected '}'"));
+        }
+        if tokens[pos] == Token::RBrace {
+            return Ok((Value::Map(Rc::new(entries)), pos + 1));
+        }
+        let (key, next) = read_form(tokens, pos)?;
+        pos = next;
+        if pos >= tokens.len() || tokens[pos] == Token::RBrace {
+            return Err(Error::runtime(
+                "map literal requires an even number of forms",
+            ));
+        }
+        let (value, next) = read_form(tokens, pos)?;
+        entries.insert(key, value);
+        pos = next;
+    }
+}
+
+fn read_set(tokens: &[Token], mut pos: usize) -> Result<(Value, usize), Error> {
+    let mut items = PersistentSet::new();
+    loop {
+        if pos >= tokens.len() {
+            return Err(Error::runtime("unterminated set, expected '}'"));
+        }
+        if tokens[pos] == Token::RBrace {
+            return Ok((Value::Set(Rc::new(items)), pos + 1));
+        }
+        let (val, next) = read_form(tokens, pos)?;
+        items.insert(val);
         pos = next;
     }
 }
@@ -299,5 +388,122 @@ mod tests {
     #[test]
     fn unterminated_string_error() {
         assert!(read_one("\"hello").is_err());
+    }
+
+    // --- Vector literals ---
+
+    #[test]
+    fn read_empty_vector() {
+        assert_eq!(read_str("[]").to_string(), "[]");
+    }
+
+    #[test]
+    fn read_vector_of_ints() {
+        assert_eq!(read_str("[1 2 3]").to_string(), "[1 2 3]");
+    }
+
+    #[test]
+    fn read_nested_vector() {
+        assert_eq!(read_str("[[1 2] [3 4]]").to_string(), "[[1 2] [3 4]]");
+    }
+
+    #[test]
+    fn unterminated_vector_error() {
+        assert!(read_one("[1 2").is_err());
+    }
+
+    #[test]
+    fn unexpected_rbracket_error() {
+        assert!(read_one("]").is_err());
+    }
+
+    // --- Map literals ---
+
+    #[test]
+    fn read_empty_map() {
+        assert_eq!(read_str("{}").to_string(), "{}");
+    }
+
+    #[test]
+    fn read_single_entry_map() {
+        assert_eq!(read_str("{:a 1}").to_string(), "{:a 1}");
+    }
+
+    #[test]
+    fn odd_map_elements_error() {
+        assert!(read_one("{:a 1 :b}").is_err());
+    }
+
+    #[test]
+    fn unterminated_map_error() {
+        assert!(read_one("{:a 1").is_err());
+    }
+
+    #[test]
+    fn unexpected_rbrace_error() {
+        assert!(read_one("}").is_err());
+    }
+
+    // --- Set literals ---
+
+    #[test]
+    fn read_empty_set() {
+        assert_eq!(read_str("#{}").to_string(), "#{}");
+    }
+
+    #[test]
+    fn read_single_element_set() {
+        assert_eq!(read_str("#{:x}").to_string(), "#{:x}");
+    }
+
+    #[test]
+    fn unterminated_set_error() {
+        assert!(read_one("#{1 2").is_err());
+    }
+
+    // --- Nesting across collection types ---
+
+    #[test]
+    fn vector_of_maps() {
+        assert_eq!(read_str("[{:a 1} {:b 2}]").to_string(), "[{:a 1} {:b 2}]");
+    }
+
+    #[test]
+    fn map_with_vector_value() {
+        assert_eq!(read_str("{:v [1 2 3]}").to_string(), "{:v [1 2 3]}");
+    }
+
+    #[test]
+    fn list_containing_vector_and_set() {
+        let val = read_str("(foo [1 2] #{:a :b})");
+        let s = val.to_string();
+        assert!(s.starts_with("(foo [1 2] #{"));
+        assert!(s.contains(":a"));
+        assert!(s.contains(":b"));
+    }
+
+    // --- Round-trip tests ---
+
+    #[test]
+    fn roundtrip_vector() {
+        let input = "[1 2 3]";
+        assert_eq!(read_str(input).to_string(), input);
+    }
+
+    #[test]
+    fn roundtrip_single_entry_map() {
+        let input = "{:a 1}";
+        assert_eq!(read_str(input).to_string(), input);
+    }
+
+    #[test]
+    fn roundtrip_set_normalized() {
+        let val = read_str("#{1 2 3}");
+        let s = val.to_string();
+        assert!(s.starts_with("#{"));
+        assert!(s.ends_with('}'));
+        // Parse back and compare structurally
+        let val2 = read_str(&s);
+        assert_eq!(val, val2);
     }
 }
