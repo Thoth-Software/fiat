@@ -1,0 +1,48 @@
+(fiat Lux)
+
+;; Result type convention
+
+(fiat ok (v) {:ok v})
+(fiat err (reason) {:err reason})
+
+(fiat result-entry (result)
+  (first (Map/entries result)))
+
+(fiat result-tag (result)
+  (first (result-entry result)))
+
+(fiat result-value (result)
+  (first (rest (result-entry result))))
+
+(fiat ok? (result)
+  (is? (result-tag result) :ok))
+
+(fiat err? (result)
+  (is? (result-tag result) :err))
+
+;; 4a. Safe division
+
+(fiat safe-div (a b)
+  (choose
+    ((= b 0) (err "division by zero"))
+    (true    (ok (/ a b)))))
+
+;; 4b. Chain results — short-circuit on first error
+
+(fiat then (result f)
+  (choose
+    ((ok? result) (f (result-value result)))
+    (true         result)))
+
+(fiat parse-config (raw)
+  (-> (ok raw)
+      (then (fiat () (cfg)
+        (choose
+          ((Map/get cfg :host false) (ok cfg))
+          (true (err "missing :host")))))
+      (then (fiat () (cfg)
+        (choose
+          ((Map/get cfg :port false) (ok cfg))
+          (true (err "missing :port")))))))
+
+(parse-config {:host "localhost" :port 8080})

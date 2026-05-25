@@ -473,9 +473,9 @@ This milestone adds string processing and the threading operators to the desugar
 
 No new interpreter machinery needed — Level 4 validates that existing maps, `choose`, and higher-order functions compose correctly for error handling patterns.
 
-- [ ] `{:ok value}` / `{:err reason}` convention works with existing `Map` and `choose`
-- [ ] Higher-order `then` chaining with short-circuit verified
-- [ ] **Level 4 benchmarks pass**
+- [x] `{:ok value}` / `{:err reason}` convention works with existing `Map` and `choose`
+- [x] Higher-order `then` chaining with short-circuit verified
+- [x] **Level 4 benchmarks pass**
 
 ### 10. Mutual Tail Recursion and State Machines [Level 5]
 
