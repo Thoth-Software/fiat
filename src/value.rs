@@ -131,6 +131,30 @@ pub enum Value {
     Builtin(Builtin),
 }
 
+impl Drop for Value {
+    fn drop(&mut self) {
+        if !matches!(self, Self::List(_)) {
+            return;
+        }
+        let empty = Rc::new(Cons {
+            head: Self::Nil,
+            tail: Self::Nil,
+        });
+        let mut next_rc = match self {
+            Self::List(rc) => std::mem::replace(rc, Rc::clone(&empty)),
+            _ => return,
+        };
+        while let Ok(mut cons) = Rc::try_unwrap(next_rc) {
+            match &mut cons.tail {
+                Self::List(tail_rc) => {
+                    next_rc = std::mem::replace(tail_rc, Rc::clone(&empty));
+                }
+                _ => break,
+            }
+        }
+    }
+}
+
 impl Value {
     pub const fn type_name(&self) -> &'static str {
         match self {

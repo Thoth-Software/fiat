@@ -416,10 +416,10 @@ The desugar pass is not the full hygienic macro system. It is a small, explicit 
 
 Tail call optimization must be in place before lists get large. This milestone validates the evaluator's execution strategy but does not by itself complete Level 5, which also depends on collections and module imports.
 
-- [ ] Trampoline loop: `eval` returns `TailCall { expr, env }` for tail-position calls
-- [ ] TCO for self-recursion in `fiat` bodies
-- [ ] TCO through `choose` branches in tail position
-- [ ] Verified: 100,000-element list reversal completes without stack overflow
+- [x] Trampoline loop: `eval` returns `TailCall { expr, env }` for tail-position calls
+- [x] TCO for self-recursion in `fiat` bodies
+- [x] TCO through `choose` branches in tail position
+- [x] Verified: 100,000-element list reversal completes without stack overflow
 
 ### 5. Reader v1: Collection Literals [Level 2 prerequisite]
 
@@ -481,7 +481,7 @@ No new interpreter machinery needed — Level 4 validates that existing maps, `c
 
 Level 5 depends on TCO machinery (milestone 4), Lux imports, maps, sets, `Map/get`, `Map/put`, and `has?` — all of which exist by this point.
 
-- [ ] TCO for mutual recursion across separate functions
+- [x] TCO for mutual recursion across separate functions
 - [ ] NPC dialogue state machine benchmark passes
 - [ ] **Level 5 benchmarks pass**
 
