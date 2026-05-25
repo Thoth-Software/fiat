@@ -520,7 +520,7 @@ Module System v1 adds the host-registration mechanism that enables capability ga
 
 - [x] Host can register or omit modules at initialization
 - [x] `(fiat Firmamentum)` only succeeds when the host registers it
-- [ ] `Fs/read` and `Fs/write` — file I/O bindings
+- [x] `Fs/read` and `Fs/write` — file I/O bindings
 - [x] `Process`, `Net`, `Http` module stubs
 - [x] Capability gating verified: embedded context cannot access unregistered modules
 - [ ] **Level 8 benchmarks pass**
