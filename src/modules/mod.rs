@@ -1,4 +1,5 @@
 mod map;
+mod string;
 mod vector;
 
 use std::rc::Rc;
@@ -49,6 +50,42 @@ fn lux_entries() -> &'static [Entry] {
         Entry {
             name: "Vector/to-list",
             func: vector::to_list,
+        },
+        Entry {
+            name: "String/downcase",
+            func: string::downcase,
+        },
+        Entry {
+            name: "String/upcase",
+            func: string::upcase,
+        },
+        Entry {
+            name: "String/trim",
+            func: string::trim,
+        },
+        Entry {
+            name: "String/replace",
+            func: string::replace,
+        },
+        Entry {
+            name: "String/split",
+            func: string::split,
+        },
+        Entry {
+            name: "String/join",
+            func: string::join,
+        },
+        Entry {
+            name: "String/concat",
+            func: string::concat,
+        },
+        Entry {
+            name: "String/length",
+            func: string::length,
+        },
+        Entry {
+            name: "String/starts-with?",
+            func: string::starts_with,
         },
     ]
 }

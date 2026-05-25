@@ -959,4 +959,80 @@ mod tests {
         let src = "(fiat Lux) (Vector/to-list [])";
         assert_eq!(eval_str(src).ok(), Some(Value::Nil));
     }
+
+    #[test]
+    fn string_downcase() {
+        assert_eq!(
+            eval_str(r#"(fiat Lux) (String/downcase "Hello World")"#).ok(),
+            Some(Value::String(Rc::from("hello world")))
+        );
+    }
+
+    #[test]
+    fn string_upcase() {
+        assert_eq!(
+            eval_str(r#"(fiat Lux) (String/upcase "hello")"#).ok(),
+            Some(Value::String(Rc::from("HELLO")))
+        );
+    }
+
+    #[test]
+    fn string_trim() {
+        assert_eq!(
+            eval_str(r#"(fiat Lux) (String/trim "  hi  ")"#).ok(),
+            Some(Value::String(Rc::from("hi")))
+        );
+    }
+
+    #[test]
+    fn string_replace() {
+        assert_eq!(
+            eval_str(r#"(fiat Lux) (String/replace "a-b-c" "-" "_")"#).ok(),
+            Some(Value::String(Rc::from("a_b_c")))
+        );
+    }
+
+    #[test]
+    fn string_split_produces_list() {
+        let src = r#"(fiat Lux) (String/split "a,b,c" ",")"#;
+        assert_eq!(
+            eval_str(src).ok().map(|v| v.to_string()),
+            Some(r#"("a" "b" "c")"#.to_string())
+        );
+    }
+
+    #[test]
+    fn string_join() {
+        let src = r#"(fiat Lux) (String/join ", " '("x" "y" "z"))"#;
+        assert_eq!(eval_str(src).ok(), Some(Value::String(Rc::from("x, y, z"))));
+    }
+
+    #[test]
+    fn string_concat() {
+        let src = r#"(fiat Lux) (String/concat '("hello" " " "world"))"#;
+        assert_eq!(
+            eval_str(src).ok(),
+            Some(Value::String(Rc::from("hello world")))
+        );
+    }
+
+    #[test]
+    fn string_length() {
+        assert_eq!(
+            eval_str(r#"(fiat Lux) (String/length "hello")"#).ok(),
+            Some(Value::Int(5))
+        );
+    }
+
+    #[test]
+    fn string_starts_with() {
+        assert_eq!(
+            eval_str(r#"(fiat Lux) (String/starts-with? "hello" "hel")"#).ok(),
+            Some(Value::Bool(true))
+        );
+        assert_eq!(
+            eval_str(r#"(fiat Lux) (String/starts-with? "hello" "xyz")"#).ok(),
+            Some(Value::Bool(false))
+        );
+    }
 }
