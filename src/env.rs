@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use crate::error::Error;
@@ -8,6 +8,7 @@ use crate::value::{InternedSymbol, Value};
 #[derive(Debug)]
 pub struct Env {
     bindings: RefCell<HashMap<InternedSymbol, Value>>,
+    capabilities: RefCell<HashSet<String>>,
     parent: Option<Rc<Self>>,
 }
 
@@ -15,6 +16,7 @@ impl Env {
     pub fn new() -> Rc<Self> {
         Rc::new(Self {
             bindings: RefCell::new(HashMap::new()),
+            capabilities: RefCell::new(HashSet::new()),
             parent: None,
         })
     }
@@ -22,6 +24,7 @@ impl Env {
     pub fn with_parent(parent: Rc<Self>) -> Rc<Self> {
         Rc::new(Self {
             bindings: RefCell::new(HashMap::new()),
+            capabilities: RefCell::new(HashSet::new()),
             parent: Some(parent),
         })
     }
@@ -38,6 +41,20 @@ impl Env {
 
     pub fn set(&self, name: InternedSymbol, value: Value) {
         self.bindings.borrow_mut().insert(name, value);
+    }
+
+    pub fn register_capability(&self, name: String) {
+        self.capabilities.borrow_mut().insert(name);
+    }
+
+    pub fn has_capability(&self, name: &str) -> bool {
+        if self.capabilities.borrow().contains(name) {
+            return true;
+        }
+        if let Some(parent) = &self.parent {
+            return parent.has_capability(name);
+        }
+        false
     }
 }
 

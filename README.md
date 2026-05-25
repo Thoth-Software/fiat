@@ -518,11 +518,11 @@ The full macro expander replaces the minimal desugar pass where appropriate. Thi
 
 Module System v1 adds the host-registration mechanism that enables capability gating for embedded contexts.
 
-- [ ] Host can register or omit modules at initialization
-- [ ] `(fiat Firmamentum)` only succeeds when the host registers it
+- [x] Host can register or omit modules at initialization
+- [x] `(fiat Firmamentum)` only succeeds when the host registers it
 - [ ] `Fs/read` and `Fs/write` — file I/O bindings
-- [ ] `Process`, `Net`, `Http` module stubs
-- [ ] Capability gating verified: embedded context cannot access unregistered modules
+- [x] `Process`, `Net`, `Http` module stubs
+- [x] Capability gating verified: embedded context cannot access unregistered modules
 - [ ] **Level 8 benchmarks pass**
 
 ### 15. Memory Management Refinement
