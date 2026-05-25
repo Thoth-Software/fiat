@@ -354,63 +354,63 @@ Each numbered milestone should be implementable without depending on milestones 
 
 These are the foundational Rust types that every other component depends on.
 
-- [ ] `Value` enum with `Nil`, `Bool`, `Int`, `Float`, `String`, `Symbol`, `Keyword`, `List`, and `Function` variants
-- [ ] `Cons` struct with `head: Value` and `tail: Value`
-- [ ] `list_from_vec` helper: fold a `Vec<Value>` right-to-left into a cons chain
-- [ ] `Display` for `Value` with cons-chain-aware list printing
-- [ ] Rust-side `PartialEq` for test assertions and internal comparison; Fiat-level `is?` remains atom-only
-- [ ] `Env` struct with `RefCell<HashMap<InternedSymbol, Value>>` bindings and `Rc<Env>` parent chain
-- [ ] Named `fiat` inserts the function into the captured environment for recursion
-- [ ] Symbol lookup through the parent chain
-- [ ] Runtime `Error` type with constructors for common errors
+- [x] `Value` enum with `Nil`, `Bool`, `Int`, `Float`, `String`, `Symbol`, `Keyword`, `List`, and `Function` variants
+- [x] `Cons` struct with `head: Value` and `tail: Value`
+- [x] `list_from_vec` helper: fold a `Vec<Value>` right-to-left into a cons chain
+- [x] `Display` for `Value` with cons-chain-aware list printing
+- [x] Rust-side `PartialEq` for test assertions and internal comparison; Fiat-level `is?` remains atom-only
+- [x] `Env` struct with `RefCell<HashMap<InternedSymbol, Value>>` bindings and `Rc<Env>` parent chain
+- [x] Named `fiat` inserts the function into the captured environment for recursion
+- [x] Symbol lookup through the parent chain
+- [x] Runtime `Error` type with constructors for common errors
 
 ### 1. Reader v0 and Printer v0 [Levels 0–1]
 
 Reader v0 is enough to pass Levels 0 and 1. Collection literal syntax is deferred to Reader v1 when the corresponding runtime types exist.
 
-- [ ] Tokenizer: integers, floats, strings, symbols, booleans, nil
-- [ ] Keyword tokenizer: colon-prefixed atoms (`:ok`, `:err`, `:player`, `:dept`)
-- [ ] List reader: `(` delimited, recursive descent, produces cons chains via `list_from_vec`
-- [ ] Quote shorthand: `'x` → `(behold x)` handled in the reader
-- [ ] Comment stripping: `;;` to end of line
-- [ ] Cons-chain-aware printer: walk `head`/`tail` links, emit `(a b c)` form
-- [ ] Round-trip fidelity: `print(read(source)) == source` for atoms, lists, keywords
+- [x] Tokenizer: integers, floats, strings, symbols, booleans, nil
+- [x] Keyword tokenizer: colon-prefixed atoms (`:ok`, `:err`, `:player`, `:dept`)
+- [x] List reader: `(` delimited, recursive descent, produces cons chains via `list_from_vec`
+- [x] Quote shorthand: `'x` → `(behold x)` handled in the reader
+- [x] Comment stripping: `;;` to end of line
+- [x] Cons-chain-aware printer: walk `head`/`tail` links, emit `(a b c)` form
+- [x] Round-trip fidelity: `print(read(source)) == source` for atoms, lists, keywords
 
 ### 2. Program Evaluator and Level 0 Core
 
 This milestone brings the evaluator online with the eight primitives, arithmetic, and program-level evaluation of multiple forms.
 
-- [ ] Program = sequence of forms evaluated in order in the same top-level environment
-- [ ] Self-evaluating atoms: numbers, strings, keywords, booleans, nil
-- [ ] Symbol evaluation via environment lookup
-- [ ] Function application: evaluate operator, evaluate arguments, apply
-- [ ] `behold` — return argument unevaluated
-- [ ] `choose` — multi-armed conditional with ordered test-expression pairs
-- [ ] `atom?` — atom predicate (`Nil` is atomic, `List` is not)
-- [ ] `is?` — atom pointer identity test; error on collection arguments
-- [ ] `first` — read cons cell head; error on `Nil`
-- [ ] `rest` — read cons cell tail; `Nil` on `Nil`
-- [ ] `bind` — allocate one cons cell, O(1); reject non-list tails
-- [ ] `fiat` — anonymous function declaration with closure capture
-- [ ] `fiat` — named function declaration with self-reference via `RefCell` environment
-- [ ] `fiat` body supports one or more forms; final form is returned
-- [ ] Local named `fiat` declarations are visible to later forms in the same body
-- [ ] `fiat` shape dispatch: `(fiat CapitalName)` → module import (stub error for now); `(fiat name (params) body)` → named function; `(fiat () (params) body)` → anonymous function
-- [ ] Numeric primitives (Rust): `+`, `-`, `*`, `/`, `%`, `>`, `<`, `=`
-- [ ] Derived numeric functions (prelude): `>=`, `<=`, `max`, `min`
-- [ ] **Level 0 benchmarks pass**
+- [x] Program = sequence of forms evaluated in order in the same top-level environment
+- [x] Self-evaluating atoms: numbers, strings, keywords, booleans, nil
+- [x] Symbol evaluation via environment lookup
+- [x] Function application: evaluate operator, evaluate arguments, apply
+- [x] `behold` — return argument unevaluated
+- [x] `choose` — multi-armed conditional with ordered test-expression pairs
+- [x] `atom?` — atom predicate (`Nil` is atomic, `List` is not)
+- [x] `is?` — atom pointer identity test; error on collection arguments
+- [x] `first` — read cons cell head; error on `Nil`
+- [x] `rest` — read cons cell tail; `Nil` on `Nil`
+- [x] `bind` — allocate one cons cell, O(1); reject non-list tails
+- [x] `fiat` — anonymous function declaration with closure capture
+- [x] `fiat` — named function declaration with self-reference via `RefCell` environment
+- [x] `fiat` body supports one or more forms; final form is returned
+- [x] Local named `fiat` declarations are visible to later forms in the same body
+- [x] `fiat` shape dispatch: `(fiat CapitalName)` → module import (stub error for now); `(fiat name (params) body)` → named function; `(fiat () (params) body)` → anonymous function
+- [x] Numeric primitives (Rust): `+`, `-`, `*`, `/`, `%`, `>`, `<`, `=`
+- [x] Derived numeric functions (prelude): `>=`, `<=`, `max`, `min`
+- [x] **Level 0 benchmarks pass**
 
 ### 3. Minimal Desugar Pass and Level 1 Closures
 
 The desugar pass is not the full hygienic macro system. It is a small, explicit source-to-source transformation used to unblock early benchmark levels.
 
-- [ ] `let` desugaring (sequential): `(let ((x v) (y w)) body...)` → `((fiat () (x) ((fiat () (y) body...) w)) v)` — each binding is visible to subsequent bindings
-- [ ] `not` available as prelude function or builtin
-- [ ] `and` desugars to nested `choose` forms: `(and a b)` → `(choose (a b) (true false))`
-- [ ] `or` desugars to `let` + `choose` to avoid double evaluation: `(or a b)` → `(let ((tmp a)) (choose (tmp tmp) (true b)))`
-- [ ] Lexical closure capture verified (currying, nested closures)
-- [ ] Functions as values: passable, returnable, storable in data structures
-- [ ] **Level 1 benchmarks pass**
+- [x] `let` desugaring (sequential): `(let ((x v) (y w)) body...)` → `((fiat () (x) ((fiat () (y) body...) w)) v)` — each binding is visible to subsequent bindings
+- [x] `not` available as prelude function or builtin
+- [x] `and` desugars to nested `choose` forms: `(and a b)` → `(choose (a b) (true false))`
+- [x] `or` desugars to `let` + `choose` to avoid double evaluation: `(or a b)` → `(let ((tmp a)) (choose (tmp tmp) (true b)))`
+- [x] Lexical closure capture verified (currying, nested closures)
+- [x] Functions as values: passable, returnable, storable in data structures
+- [x] **Level 1 benchmarks pass**
 
 ### 4. TCO Machinery
 
@@ -425,31 +425,31 @@ Tail call optimization must be in place before lists get large. This milestone v
 
 Reader v1 extends the reader with collection literal syntax once the corresponding runtime types are about to be implemented.
 
-- [ ] Vector literal reader: `[]`
-- [ ] Map literal reader: `{}` with alternating key/value forms; reject odd element count
-- [ ] Set literal reader: `#{}`
-- [ ] Collection literal printing for vectors, maps, and sets
+- [x] Vector literal reader: `[]`
+- [x] Map literal reader: `{}` with alternating key/value forms; reject odd element count
+- [x] Set literal reader: `#{}`
+- [x] Collection literal printing for vectors, maps, and sets
 
 ### 6. Module System v0: Lux Import and Namespaced Lookup [Level 2 prerequisite]
 
 Module System v0 provides the minimal infrastructure needed for `(fiat Lux)` and namespaced function calls. Host-registered capability gating is deferred to v1.
 
-- [ ] `(fiat CapitalName)` recognized as module import when called with one capitalized symbol
-- [ ] Module registry for built-in pure-computation modules
-- [ ] `(fiat Lux)` loads core modules: `Map`, `Vector`, `Set`, `List`, `Int`, `Float`, `Math`, `String`
-- [ ] Namespaced symbol lookup: `Map/get`, `String/trim`, `Vector/append`
-- [ ] Importing an unknown module returns a clear error
+- [x] `(fiat CapitalName)` recognized as module import when called with one capitalized symbol
+- [x] Module registry for built-in pure-computation modules
+- [x] `(fiat Lux)` loads core modules: `Map`, `Vector`, `Set`, `List`, `Int`, `Float`, `Math`, `String`
+- [x] Namespaced symbol lookup: `Map/get`, `String/trim`, `Vector/append`
+- [x] Importing an unknown module returns a clear error
 
 ### 7. Persistent Collections and Level 2
 
 This milestone adds the runtime collection types and the Lux module functions that operate on them.
 
-- [ ] `Vector` variant backed by persistent vector (HAMT or `im` crate)
-- [ ] `Map` variant backed by persistent map
-- [ ] `Set` variant backed by persistent set
-- [ ] Collection literals evaluate their elements (Clojure-style)
-- [ ] Set primitives: `set?`, `has?`, `union`, `intersect`, `without`
-- [ ] `Map` module: `Map/get`, `Map/put`, `Map/merge`, `Map/entries`, `Map/map-values`
+- [x] `Vector` variant backed by persistent vector (HAMT or `im` crate)
+- [x] `Map` variant backed by persistent map
+- [x] `Set` variant backed by persistent set
+- [x] Collection literals evaluate their elements (Clojure-style)
+- [x] Set primitives: `set?`, `has?`, `union`, `intersect`, `without`
+- [x] `Map` module: `Map/get`, `Map/put`, `Map/merge`, `Map/entries`, `Map/map-values`
 - [ ] `Vector` module: `Vector/append`, `Vector/nth`, `Vector/to-list`
 - [ ] `Vector/to-list` verified: Level 2d uses it to convert vector records before passing to list-based `group-by`
 - [ ] **Level 2 benchmarks pass**
