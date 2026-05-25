@@ -482,8 +482,8 @@ No new interpreter machinery needed — Level 4 validates that existing maps, `c
 Level 5 depends on TCO machinery (milestone 4), Lux imports, maps, sets, `Map/get`, `Map/put`, and `has?` — all of which exist by this point.
 
 - [x] TCO for mutual recursion across separate functions
-- [ ] NPC dialogue state machine benchmark passes
-- [ ] **Level 5 benchmarks pass**
+- [x] NPC dialogue state machine benchmark passes
+- [x] **Level 5 benchmarks pass**
 
 ### 11. Self-Hosting Stress Test [Level 6]
 

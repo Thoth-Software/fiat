@@ -1,0 +1,30 @@
+(fiat Lux)
+
+(fiat dialogue (state context)
+  (choose
+    ((is? state :greeting)  (state-greeting context))
+    ((is? state :question)  (state-question context))
+    ((is? state :farewell)  (state-farewell context))
+    (true                   (state-farewell context))))
+
+(fiat state-greeting (context)
+  (let ((response (Map/put context :said "Hello, traveler!")))
+    (choose
+      ((has? :has-quest (Map/get context :flags #{}))
+        (dialogue :question response))
+      (true
+        (dialogue :farewell response)))))
+
+(fiat state-question (context)
+  (let ((response (Map/put context :said "Have you found the amulet?")))
+    (choose
+      ((has? :has-amulet (Map/get context :flags #{}))
+        (dialogue :farewell (Map/put response :quest-complete true)))
+      (true
+        (dialogue :farewell response)))))
+
+(fiat state-farewell (context)
+  (Map/put context :said "Safe travels."))
+
+;; Run it
+(dialogue :greeting {:flags #{:has-quest :has-amulet}})
