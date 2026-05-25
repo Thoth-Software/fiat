@@ -17,7 +17,19 @@ pub fn eval_program(forms: &[Value], env: &Rc<Env>) -> Result<Value, Error> {
     Ok(result)
 }
 
+enum Step {
+    Done(Value),
+    TailCall { func: Value, args: Vec<Value> },
+}
+
 pub fn eval(expr: &Value, env: &Rc<Env>) -> Result<Value, Error> {
+    match eval_inner(expr, env)? {
+        Step::Done(v) => Ok(v),
+        Step::TailCall { func, args } => trampoline(&func, &args),
+    }
+}
+
+fn eval_inner(expr: &Value, env: &Rc<Env>) -> Result<Step, Error> {
     match expr {
         Value::Nil
         | Value::Bool(_)
@@ -26,52 +38,50 @@ pub fn eval(expr: &Value, env: &Rc<Env>) -> Result<Value, Error> {
         | Value::String(_)
         | Value::Keyword(_)
         | Value::Function(_)
-        | Value::Builtin(_) => Ok(expr.clone()),
+        | Value::Builtin(_) => Ok(Step::Done(expr.clone())),
 
         Value::Vector(items) => {
             let evaluated: Result<PersistentVector<Value>, Error> =
                 items.iter().map(|item| eval(item, env)).collect();
-            Ok(Value::Vector(Rc::new(evaluated?)))
+            Ok(Step::Done(Value::Vector(Rc::new(evaluated?))))
         }
         Value::Map(entries) => {
             let evaluated: Result<PersistentMap<Value, Value>, Error> = entries
                 .iter()
                 .map(|(k, v)| Ok((eval(k, env)?, eval(v, env)?)))
                 .collect();
-            Ok(Value::Map(Rc::new(evaluated?)))
+            Ok(Step::Done(Value::Map(Rc::new(evaluated?))))
         }
         Value::Set(items) => {
             let evaluated: Result<PersistentSet<Value>, Error> =
                 items.iter().map(|item| eval(item, env)).collect();
-            Ok(Value::Set(Rc::new(evaluated?)))
+            Ok(Step::Done(Value::Set(Rc::new(evaluated?))))
         }
 
-        // A symbol resolves to its binding, falling back to a primitive
-        // builtin (e.g. `+`, `<`) so primitives are first-class values.
         Value::Symbol(sym) => match env.get(sym) {
-            Ok(value) => Ok(value),
-            Err(err) => builtin_value(sym.name()).ok_or(err),
+            Ok(value) => Ok(Step::Done(value)),
+            Err(err) => builtin_value(sym.name()).map(Step::Done).ok_or(err),
         },
 
-        Value::List(cons) => eval_list(cons, env),
+        Value::List(cons) => eval_list_tail(cons, env),
     }
 }
 
-fn eval_list(cons: &Cons, env: &Rc<Env>) -> Result<Value, Error> {
+fn eval_list_tail(cons: &Cons, env: &Rc<Env>) -> Result<Step, Error> {
     if let Some(sym) = cons.head.as_symbol() {
         match sym.name() {
-            "behold" => return eval_behold(&cons.tail),
-            "choose" => return eval_choose(&cons.tail, env),
-            "fiat" => return eval_fiat(&cons.tail, env),
-            "atom?" => return eval_atom_q(&cons.tail, env),
-            "is?" => return eval_is_q(&cons.tail, env),
-            "first" => return eval_first(&cons.tail, env),
-            "rest" => return eval_rest(&cons.tail, env),
-            "bind" => return eval_bind(&cons.tail, env),
+            "behold" => return eval_behold(&cons.tail).map(Step::Done),
+            "choose" => return eval_choose_tail(&cons.tail, env),
+            "fiat" => return eval_fiat(&cons.tail, env).map(Step::Done),
+            "atom?" => return eval_atom_q(&cons.tail, env).map(Step::Done),
+            "is?" => return eval_is_q(&cons.tail, env).map(Step::Done),
+            "first" => return eval_first(&cons.tail, env).map(Step::Done),
+            "rest" => return eval_rest(&cons.tail, env).map(Step::Done),
+            "bind" => return eval_bind(&cons.tail, env).map(Step::Done),
             name => {
                 if let Some(builtin) = lookup_builtin(name) {
                     let args = eval_args(&cons.tail, env)?;
-                    return builtin(&args);
+                    return builtin(&args).map(Step::Done);
                 }
             }
         }
@@ -79,7 +89,7 @@ fn eval_list(cons: &Cons, env: &Rc<Env>) -> Result<Value, Error> {
 
     let func = eval(&cons.head, env)?;
     let args = eval_args(&cons.tail, env)?;
-    apply(&func, &args)
+    Ok(Step::TailCall { func, args })
 }
 
 fn eval_args(tail: &Value, env: &Rc<Env>) -> Result<Vec<Value>, Error> {
@@ -98,6 +108,22 @@ fn eval_args(tail: &Value, env: &Rc<Env>) -> Result<Vec<Value>, Error> {
 }
 
 pub fn apply(func: &Value, args: &[Value]) -> Result<Value, Error> {
+    trampoline(func, args)
+}
+
+fn trampoline(func: &Value, args: &[Value]) -> Result<Value, Error> {
+    let mut step = apply_once(func, args)?;
+    loop {
+        match step {
+            Step::Done(v) => return Ok(v),
+            Step::TailCall { func, args } => {
+                step = apply_once(&func, &args)?;
+            }
+        }
+    }
+}
+
+fn apply_once(func: &Value, args: &[Value]) -> Result<Step, Error> {
     match func {
         Value::Function(f) => {
             if f.params.len() != args.len() {
@@ -111,13 +137,13 @@ pub fn apply(func: &Value, args: &[Value]) -> Result<Value, Error> {
             for (param, arg) in f.params.iter().zip(args.iter()) {
                 local_env.set(param.clone(), arg.clone());
             }
-            let mut result = Value::Nil;
-            for body_form in &f.body {
-                result = eval(body_form, &local_env)?;
+            let body_len = f.body.len();
+            for body_form in &f.body[..body_len - 1] {
+                eval(body_form, &local_env)?;
             }
-            Ok(result)
+            eval_inner(&f.body[body_len - 1], &local_env)
         }
-        Value::Builtin(b) => (b.func)(args),
+        Value::Builtin(b) => (b.func)(args).map(Step::Done),
         _ => Err(Error::not_callable(func.type_name())),
     }
 }
@@ -131,11 +157,11 @@ fn eval_behold(tail: &Value) -> Result<Value, Error> {
     }
 }
 
-fn eval_choose(tail: &Value, env: &Rc<Env>) -> Result<Value, Error> {
+fn eval_choose_tail(tail: &Value, env: &Rc<Env>) -> Result<Step, Error> {
     let mut current = tail;
     loop {
         match current {
-            Value::Nil => return Ok(Value::Nil),
+            Value::Nil => return Ok(Step::Done(Value::Nil)),
             Value::List(cons) => match &cons.head {
                 Value::List(pair) => {
                     let test = eval(&pair.head, env)?;
@@ -147,7 +173,7 @@ fn eval_choose(tail: &Value, env: &Rc<Env>) -> Result<Value, Error> {
                                 "each clause must have exactly 2 elements (test result)",
                             ));
                         }
-                        return eval(&result_forms[0], env);
+                        return eval_inner(&result_forms[0], env);
                     }
                     current = &cons.tail;
                 }
@@ -1213,5 +1239,70 @@ mod tests {
         let by = eval_str(by_src).expect("bytes");
         assert_eq!(cp.to_string(), "(233)");
         assert_eq!(by.to_string(), "(195 169)");
+    }
+
+    fn eval_with_prelude(source: &str) -> Result<Value, Error> {
+        let forms = read(source).map_err(|e| Error::runtime(format!("read error: {e}")))?;
+        let env = crate::prelude::environment()
+            .map_err(|e| Error::runtime(format!("prelude error: {e}")))?;
+        eval_program(&forms, &env)
+    }
+
+    #[test]
+    fn tco_self_recursion_deep() {
+        let source = r#"
+            (fiat count-down (n)
+              (choose
+                ((= n 0) 0)
+                (true (count-down (- n 1)))))
+            (count-down 100000)
+        "#;
+        assert_eq!(eval_str(source).ok(), Some(Value::Int(0)));
+    }
+
+    #[test]
+    fn tco_reverse_100k() {
+        let source = r#"
+            (fiat build (n acc)
+              (choose
+                ((= n 0) acc)
+                (true (build (- n 1) (bind n acc)))))
+            (let ((big-list (build 100000 ())))
+              (first (reverse big-list)))
+        "#;
+        let result = eval_with_prelude(source).expect("should not overflow");
+        assert_eq!(result, Value::Int(100000));
+    }
+
+    #[test]
+    fn tco_mutual_recursion() {
+        let source = r#"
+            (fiat my-even? (n)
+              (choose
+                ((= n 0) true)
+                (true (my-odd? (- n 1)))))
+            (fiat my-odd? (n)
+              (choose
+                ((= n 0) false)
+                (true (my-even? (- n 1)))))
+            (my-even? 100000)
+        "#;
+        assert_eq!(eval_str(source).ok(), Some(Value::Bool(true)));
+    }
+
+    #[test]
+    fn tco_mutual_recursion_odd() {
+        let source = r#"
+            (fiat my-even? (n)
+              (choose
+                ((= n 0) true)
+                (true (my-odd? (- n 1)))))
+            (fiat my-odd? (n)
+              (choose
+                ((= n 0) false)
+                (true (my-even? (- n 1)))))
+            (my-odd? 99999)
+        "#;
+        assert_eq!(eval_str(source).ok(), Some(Value::Bool(true)));
     }
 }
