@@ -910,4 +910,53 @@ mod tests {
     fn map_get_type_error() {
         assert!(eval_str("(fiat Lux) (Map/get '(1 2) :a 0)").is_err());
     }
+
+    #[test]
+    fn vector_append() {
+        let src = "(fiat Lux) (Vector/append [1 2] 3)";
+        assert_eq!(
+            eval_str(src).ok().map(|v| v.to_string()),
+            Some("[1 2 3]".to_string())
+        );
+    }
+
+    #[test]
+    fn vector_append_immutability() {
+        let src = r#"
+            (fiat Lux)
+            (let ((v [1 2]))
+              (let ((_ (Vector/append v 3)))
+                v))
+        "#;
+        assert_eq!(
+            eval_str(src).ok().map(|v| v.to_string()),
+            Some("[1 2]".to_string())
+        );
+    }
+
+    #[test]
+    fn vector_nth() {
+        let src = "(fiat Lux) (Vector/nth [10 20 30] 1)";
+        assert_eq!(eval_str(src).ok(), Some(Value::Int(20)));
+    }
+
+    #[test]
+    fn vector_nth_out_of_bounds() {
+        assert!(eval_str("(fiat Lux) (Vector/nth [1 2] 5)").is_err());
+    }
+
+    #[test]
+    fn vector_to_list_order() {
+        let src = "(fiat Lux) (Vector/to-list [1 2 3])";
+        assert_eq!(
+            eval_str(src).ok().map(|v| v.to_string()),
+            Some("(1 2 3)".to_string())
+        );
+    }
+
+    #[test]
+    fn vector_to_list_empty() {
+        let src = "(fiat Lux) (Vector/to-list [])";
+        assert_eq!(eval_str(src).ok(), Some(Value::Nil));
+    }
 }

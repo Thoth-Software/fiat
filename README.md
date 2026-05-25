@@ -450,8 +450,8 @@ This milestone adds the runtime collection types and the Lux module functions th
 - [x] Collection literals evaluate their elements (Clojure-style)
 - [x] Set primitives: `set?`, `has?`, `union`, `intersect`, `without`
 - [x] `Map` module: `Map/get`, `Map/put`, `Map/merge`, `Map/entries`, `Map/map-values`
-- [ ] `Vector` module: `Vector/append`, `Vector/nth`, `Vector/to-list`
-- [ ] `Vector/to-list` verified: Level 2d uses it to convert vector records before passing to list-based `group-by`
+- [x] `Vector` module: `Vector/append`, `Vector/nth`, `Vector/to-list`
+- [x] `Vector/to-list` verified: Level 2d uses it to convert vector records before passing to list-based `group-by`
 - [ ] **Level 2 benchmarks pass**
 
 ### 8. String Module and Threading Desugar [Level 3]

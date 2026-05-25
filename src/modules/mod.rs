@@ -1,4 +1,5 @@
 mod map;
+mod vector;
 
 use std::rc::Rc;
 
@@ -36,6 +37,18 @@ fn lux_entries() -> &'static [Entry] {
         Entry {
             name: "Map/map-values",
             func: map::map_values,
+        },
+        Entry {
+            name: "Vector/append",
+            func: vector::append,
+        },
+        Entry {
+            name: "Vector/nth",
+            func: vector::nth,
+        },
+        Entry {
+            name: "Vector/to-list",
+            func: vector::to_list,
         },
     ]
 }
