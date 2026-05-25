@@ -7,7 +7,8 @@ use crate::value::{Cons, Function, InternedSymbol, Value, list_to_vec};
 pub fn eval_program(forms: &[Value], env: &Rc<Env>) -> Result<Value, Error> {
     let mut result = Value::Nil;
     for form in forms {
-        result = eval(form, env)?;
+        let desugared = crate::desugar::desugar(form);
+        result = eval(&desugared, env)?;
     }
     Ok(result)
 }
@@ -234,8 +235,9 @@ fn eval_is_q(tail: &Value, env: &Rc<Env>) -> Result<Value, Error> {
         (Value::Bool(x), Value::Bool(y)) => x == y,
         (Value::Int(x), Value::Int(y)) => x == y,
         (Value::Float(x), Value::Float(y)) => x == y,
-        (Value::Symbol(x), Value::Symbol(y))
-        | (Value::Keyword(x), Value::Keyword(y)) => x.ptr_eq(y),
+        (Value::Symbol(x), Value::Symbol(y)) | (Value::Keyword(x), Value::Keyword(y)) => {
+            x.ptr_eq(y)
+        }
         (Value::String(x), Value::String(y)) => Rc::ptr_eq(x, y),
         _ => false,
     };
