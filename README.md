@@ -459,10 +459,10 @@ This milestone adds the runtime collection types and the Lux module functions th
 This milestone adds string processing and the threading operators to the desugar pass.
 
 - [x] `String` module: `split`, `trim`, `downcase`, `upcase`, `replace`, `concat`, `length`, `join`, `starts-with?`
-- [ ] `as-graphemes` — string to cons chain of single-grapheme strings
-- [ ] `as-codepoints` — string to cons chain of integer codepoints
-- [ ] `as-bytes` — string to cons chain of byte values
-- [ ] `from-codepoints` — cons chain of codepoints to string
+- [x] `as-graphemes` — string to cons chain of single-grapheme strings
+- [x] `as-codepoints` — string to cons chain of integer codepoints
+- [x] `as-bytes` — string to cons chain of byte values
+- [x] `from-codepoints` — cons chain of codepoints to string
 - [ ] `->` thread-first desugaring: insert threaded value as first argument
 - [ ] `->>` thread-last desugaring: insert threaded value as last argument
 - [ ] `name->` thread-as desugaring: insert wherever the binding name appears
