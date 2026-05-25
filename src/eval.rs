@@ -169,10 +169,7 @@ fn eval_fiat(tail: &Value, env: &Rc<Env>) -> Result<Value, Error> {
     {
         let first_char = sym.name().chars().next().unwrap_or('a');
         if first_char.is_uppercase() {
-            return Err(Error::runtime(format!(
-                "module import not yet implemented: {}",
-                sym.name()
-            )));
+            return crate::modules::import_module(sym.name(), env);
         }
     }
 
@@ -822,5 +819,38 @@ mod tests {
             eval_str("set?").ok().map(|v| v.to_string()),
             Some("<builtin set?>".to_string())
         );
+    }
+
+    #[test]
+    fn fiat_lux_succeeds() {
+        assert_eq!(eval_str("(fiat Lux)").ok(), Some(Value::Nil));
+    }
+
+    #[test]
+    fn unknown_module_errors() {
+        assert!(eval_str("(fiat Bogus)").is_err());
+    }
+
+    #[test]
+    fn namespaced_call_after_import() {
+        assert_eq!(
+            eval_str("(fiat Lux) (Int/to-string 42)").ok(),
+            Some(Value::String(Rc::from("42")))
+        );
+    }
+
+    #[test]
+    fn namespaced_call_without_import_errors() {
+        assert!(eval_str("(Int/to-string 42)").is_err());
+    }
+
+    #[test]
+    fn namespaced_builtin_is_first_class() {
+        let src = r#"
+            (fiat Lux)
+            (let ((f Int/to-string))
+              (f 99))
+        "#;
+        assert_eq!(eval_str(src).ok(), Some(Value::String(Rc::from("99"))));
     }
 }
