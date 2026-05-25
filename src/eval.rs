@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::env::Env;
 use crate::error::Error;
-use crate::value::{Cons, Function, InternedSymbol, Value, list_to_vec};
+use crate::value::{Builtin, BuiltinFn, Cons, Function, InternedSymbol, Value, list_to_vec};
 
 pub fn eval_program(forms: &[Value], env: &Rc<Env>) -> Result<Value, Error> {
     let mut result = Value::Nil;
@@ -21,9 +21,15 @@ pub fn eval(expr: &Value, env: &Rc<Env>) -> Result<Value, Error> {
         | Value::Float(_)
         | Value::String(_)
         | Value::Keyword(_)
-        | Value::Function(_) => Ok(expr.clone()),
+        | Value::Function(_)
+        | Value::Builtin(_) => Ok(expr.clone()),
 
-        Value::Symbol(sym) => env.get(sym),
+        // A symbol resolves to its binding, falling back to a primitive
+        // builtin (e.g. `+`, `<`) so primitives are first-class values.
+        Value::Symbol(sym) => match env.get(sym) {
+            Ok(value) => Ok(value),
+            Err(err) => builtin_value(sym.name()).ok_or(err),
+        },
 
         Value::List(cons) => eval_list(cons, env),
     }
@@ -89,6 +95,7 @@ fn apply(func: &Value, args: &[Value]) -> Result<Value, Error> {
             }
             Ok(result)
         }
+        Value::Builtin(b) => (b.func)(args),
         _ => Err(Error::not_callable(func.type_name())),
     }
 }
@@ -286,20 +293,26 @@ fn eval_bind(tail: &Value, env: &Rc<Env>) -> Result<Value, Error> {
 
 // --- Built-in Arithmetic ---
 
-type BuiltinFn = fn(&[Value]) -> Result<Value, Error>;
+fn builtin_entry(name: &str) -> Option<(&'static str, BuiltinFn)> {
+    Some(match name {
+        "+" => ("+", builtin_add),
+        "-" => ("-", builtin_sub),
+        "*" => ("*", builtin_mul),
+        "/" => ("/", builtin_div),
+        "%" => ("%", builtin_rem),
+        ">" => (">", builtin_gt),
+        "<" => ("<", builtin_lt),
+        "=" => ("=", builtin_eq),
+        _ => return None,
+    })
+}
 
 fn lookup_builtin(name: &str) -> Option<BuiltinFn> {
-    match name {
-        "+" => Some(builtin_add),
-        "-" => Some(builtin_sub),
-        "*" => Some(builtin_mul),
-        "/" => Some(builtin_div),
-        "%" => Some(builtin_rem),
-        ">" => Some(builtin_gt),
-        "<" => Some(builtin_lt),
-        "=" => Some(builtin_eq),
-        _ => None,
-    }
+    builtin_entry(name).map(|(_, func)| func)
+}
+
+fn builtin_value(name: &str) -> Option<Value> {
+    builtin_entry(name).map(|(sname, func)| Value::Builtin(Builtin { name: sname, func }))
 }
 
 fn numeric_binop<FI, FF>(
@@ -566,5 +579,25 @@ mod tests {
     #[test]
     fn eval_bind_non_list_error() {
         assert!(eval_str("(bind 1 2)").is_err());
+    }
+
+    #[test]
+    fn builtin_is_first_class_value() {
+        let result = eval_str("+").expect("should resolve to a builtin");
+        assert_eq!(result.to_string(), "<builtin +>");
+    }
+
+    #[test]
+    fn builtin_passed_as_argument() {
+        // A primitive passed into a closure and applied there.
+        assert_eq!(
+            eval_str("((fiat () (f) (f 3 4)) +)").ok(),
+            Some(Value::Int(7))
+        );
+    }
+
+    #[test]
+    fn unbound_non_builtin_symbol_errors() {
+        assert!(eval_str("nope").is_err());
     }
 }
