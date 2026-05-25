@@ -950,6 +950,38 @@ mod tests {
     }
 
     #[test]
+    fn math_sqrt_of_int() {
+        assert_eq!(
+            eval_str("(fiat Lux) (Math/sqrt 9)").ok(),
+            Some(Value::Float(3.0))
+        );
+    }
+
+    #[test]
+    fn math_sqrt_of_float() {
+        assert_eq!(
+            eval_str("(fiat Lux) (Math/sqrt 2.25)").ok(),
+            Some(Value::Float(1.5))
+        );
+    }
+
+    #[test]
+    fn float_to_string_whole() {
+        assert_eq!(
+            eval_str("(fiat Lux) (Float/to-string 3.0)").ok(),
+            Some(Value::String(Rc::from("3.0")))
+        );
+    }
+
+    #[test]
+    fn float_to_string_fractional() {
+        assert_eq!(
+            eval_str("(fiat Lux) (Float/to-string 1.5)").ok(),
+            Some(Value::String(Rc::from("1.5")))
+        );
+    }
+
+    #[test]
     fn namespaced_builtin_is_first_class() {
         let src = r#"
             (fiat Lux)
