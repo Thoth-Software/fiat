@@ -1,4 +1,7 @@
+mod float;
+mod int;
 mod map;
+mod math;
 mod string;
 mod vector;
 
@@ -17,7 +20,15 @@ fn lux_entries() -> &'static [Entry] {
     &[
         Entry {
             name: "Int/to-string",
-            func: int_to_string,
+            func: int::to_string,
+        },
+        Entry {
+            name: "Float/to-string",
+            func: float::to_string,
+        },
+        Entry {
+            name: "Math/sqrt",
+            func: math::sqrt,
         },
         Entry {
             name: "Map/get",
@@ -107,17 +118,5 @@ pub fn import_module(name: &str, env: &Rc<Env>) -> Result<Value, Error> {
     match name {
         "Lux" => import_lux(env),
         _ => Err(Error::runtime(format!("unknown module: {name}"))),
-    }
-}
-
-// --- Int namespace ---
-
-fn int_to_string(args: &[Value]) -> Result<Value, Error> {
-    if args.len() != 1 {
-        return Err(Error::arity("Int/to-string", 1, args.len()));
-    }
-    match &args[0] {
-        Value::Int(n) => Ok(Value::String(Rc::from(n.to_string().as_str()))),
-        _ => Err(Error::type_error("int", args[0].type_name())),
     }
 }

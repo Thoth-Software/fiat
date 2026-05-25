@@ -277,6 +277,7 @@ fiat/
 │   │   ├── vector.rs         # Vector module (append, nth, to-list, etc.)
 │   │   ├── math.rs           # Math module (sqrt, etc.)
 │   │   ├── int.rs            # Int module (parse, to-string)
+│   │   ├── float.rs          # Float module (to-string)
 │   │   └── firmamentum.rs    # Scripting I/O bindings (Fs, Process, Net)
 │   ├── macros/
 │   │   ├── mod.rs            # Full hygienic macro expander (later milestone)
