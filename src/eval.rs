@@ -95,7 +95,7 @@ fn eval_args(tail: &Value, env: &Rc<Env>) -> Result<Vec<Value>, Error> {
     }
 }
 
-fn apply(func: &Value, args: &[Value]) -> Result<Value, Error> {
+pub fn apply(func: &Value, args: &[Value]) -> Result<Value, Error> {
     match func {
         Value::Function(f) => {
             if f.params.len() != args.len() {
@@ -852,5 +852,62 @@ mod tests {
               (f 99))
         "#;
         assert_eq!(eval_str(src).ok(), Some(Value::String(Rc::from("99"))));
+    }
+
+    #[test]
+    fn map_get_found() {
+        let src = "(fiat Lux) (Map/get {:a 1 :b 2} :a 0)";
+        assert_eq!(eval_str(src).ok(), Some(Value::Int(1)));
+    }
+
+    #[test]
+    fn map_get_default() {
+        let src = "(fiat Lux) (Map/get {:a 1} :z 99)";
+        assert_eq!(eval_str(src).ok(), Some(Value::Int(99)));
+    }
+
+    #[test]
+    fn map_put_roundtrip() {
+        let src = r#"
+            (fiat Lux)
+            (let ((m (Map/put {} :count 0)))
+              (let ((m2 (Map/put m :count (+ (Map/get m :count 0) 1))))
+                (Map/get m2 :count 0)))
+        "#;
+        assert_eq!(eval_str(src).ok(), Some(Value::Int(1)));
+    }
+
+    #[test]
+    fn map_merge_override() {
+        let src = r#"
+            (fiat Lux)
+            (let ((a {:x 1 :y 2})
+                  (b {:y 3 :z 4}))
+              (Map/get (Map/merge a b) :y 0))
+        "#;
+        assert_eq!(eval_str(src).ok(), Some(Value::Int(3)));
+    }
+
+    #[test]
+    fn map_entries_shape() {
+        let src = "(fiat Lux) (Map/entries {:a 1})";
+        let result = eval_str(src).expect("should eval");
+        assert_eq!(result.to_string(), "((:a 1))");
+    }
+
+    #[test]
+    fn map_map_values() {
+        let src = r#"
+            (fiat Lux)
+            (Map/get
+              (Map/map-values (fiat () (v) (* v 10)) {:a 1 :b 2})
+              :a 0)
+        "#;
+        assert_eq!(eval_str(src).ok(), Some(Value::Int(10)));
+    }
+
+    #[test]
+    fn map_get_type_error() {
+        assert!(eval_str("(fiat Lux) (Map/get '(1 2) :a 0)").is_err());
     }
 }

@@ -1,3 +1,5 @@
+mod map;
+
 use std::rc::Rc;
 
 use crate::env::Env;
@@ -10,10 +12,32 @@ struct Entry {
 }
 
 fn lux_entries() -> &'static [Entry] {
-    &[Entry {
-        name: "Int/to-string",
-        func: int_to_string,
-    }]
+    &[
+        Entry {
+            name: "Int/to-string",
+            func: int_to_string,
+        },
+        Entry {
+            name: "Map/get",
+            func: map::get,
+        },
+        Entry {
+            name: "Map/put",
+            func: map::put,
+        },
+        Entry {
+            name: "Map/merge",
+            func: map::merge,
+        },
+        Entry {
+            name: "Map/entries",
+            func: map::entries,
+        },
+        Entry {
+            name: "Map/map-values",
+            func: map::map_values,
+        },
+    ]
 }
 
 pub fn import_lux(env: &Rc<Env>) -> Result<Value, Error> {
