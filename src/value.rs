@@ -4,6 +4,7 @@ use std::fmt;
 use std::rc::Rc;
 
 use crate::env::Env;
+use crate::error::Error;
 
 // --- Symbol Interning ---
 
@@ -82,6 +83,31 @@ impl fmt::Display for Function {
     }
 }
 
+// --- Builtin (native Rust function) ---
+
+pub type BuiltinFn = fn(&[Value]) -> Result<Value, Error>;
+
+/// A primitive operation implemented in Rust (arithmetic, set ops, etc.).
+/// Carried as a first-class value so it can be passed to higher-order
+/// functions like `fold` and `map`.
+#[derive(Clone)]
+pub struct Builtin {
+    pub name: &'static str,
+    pub func: BuiltinFn,
+}
+
+impl fmt::Debug for Builtin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<builtin {}>", self.name)
+    }
+}
+
+impl fmt::Display for Builtin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<builtin {}>", self.name)
+    }
+}
+
 // --- Value ---
 
 #[derive(Debug, Clone)]
@@ -95,6 +121,7 @@ pub enum Value {
     Keyword(InternedSymbol),
     List(Rc<Cons>),
     Function(Rc<Function>),
+    Builtin(Builtin),
 }
 
 impl Value {
@@ -109,6 +136,7 @@ impl Value {
             Self::Keyword(_) => "keyword",
             Self::List(_) => "list",
             Self::Function(_) => "function",
+            Self::Builtin(_) => "builtin",
         }
     }
 
@@ -190,6 +218,7 @@ impl fmt::Display for Value {
                 write!(f, ")")
             }
             Self::Function(func) => write!(f, "{func}"),
+            Self::Builtin(b) => write!(f, "{b}"),
         }
     }
 }
@@ -207,6 +236,7 @@ impl PartialEq for Value {
             (Self::Symbol(a), Self::Symbol(b)) | (Self::Keyword(a), Self::Keyword(b)) => a == b,
             (Self::List(a), Self::List(b)) => a.head == b.head && a.tail == b.tail,
             (Self::Function(a), Self::Function(b)) => Rc::ptr_eq(a, b),
+            (Self::Builtin(a), Self::Builtin(b)) => a.name == b.name,
             _ => false,
         }
     }

@@ -1,0 +1,59 @@
+;; Fiat automatic prelude.
+;;
+;; Self-hosted helpers built from the eight primitives plus arithmetic.
+;; These are ordinary Fiat functions, not Rust builtins. Levels 0 and 6
+;; deliberately run without this prelude, so it must not be required for
+;; the primitive kernel to work.
+
+;; not — boolean negation
+(fiat not (x)
+  (choose
+    (x false)
+    (true true)))
+
+;; >= and <= — comparisons derived from < and > via not
+(fiat >= (a b) (not (< a b)))
+(fiat <= (a b) (not (> a b)))
+
+;; max and min — two-argument numeric extremes
+(fiat max (a b) (choose ((> a b) a) (true b)))
+(fiat min (a b) (choose ((< a b) a) (true b)))
+
+;; fold — reduce a list to a single value, left to right
+(fiat fold (f acc lst)
+  (choose
+    ((atom? lst) acc)
+    (true (fold f (f acc (first lst)) (rest lst)))))
+
+;; map — apply a function to every element of a list
+(fiat map (f lst)
+  (choose
+    ((atom? lst) ())
+    (true (bind (f (first lst))
+                (map f (rest lst))))))
+
+;; filter — keep elements satisfying a predicate
+(fiat filter (pred lst)
+  (choose
+    ((atom? lst) ())
+    ((pred (first lst))
+      (bind (first lst) (filter pred (rest lst))))
+    (true (filter pred (rest lst)))))
+
+;; length — number of elements in a list
+(fiat length (lst)
+  (fold (fiat () (acc x) (+ acc 1)) 0 lst))
+
+;; reverse — reverse a list (tail recursive via a local helper)
+(fiat reverse (lst)
+  (fiat go (remaining acc)
+    (choose
+      ((atom? remaining) acc)
+      (true (go (rest remaining) (bind (first remaining) acc)))))
+  (go lst ()))
+
+;; append — concatenate two lists
+(fiat append (xs ys)
+  (choose
+    ((atom? xs) ys)
+    (true (bind (first xs) (append (rest xs) ys)))))
