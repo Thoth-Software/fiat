@@ -1,0 +1,131 @@
+(fiat Lux)
+(fiat Firmamentum)
+
+;; --- Result helpers ---
+
+(fiat ok (v) {:ok v})
+(fiat err (reason) {:err reason})
+
+;; A result map contains exactly one key-value pair.
+;; Map/entries returns a list of entries.
+;; Each entry is a two-element list: (key value).
+(fiat result-entry (result)
+  (first (Map/entries result)))
+
+(fiat result-tag (result)
+  (first (result-entry result)))
+
+(fiat result-value (result)
+  (first (rest (result-entry result))))
+
+(fiat ok? (result)
+  (is? (result-tag result) :ok))
+
+(fiat err? (result)
+  (is? (result-tag result) :err))
+
+(fiat then (result f)
+  (choose
+    ((ok? result) (f (result-value result)))
+    (true         result)))
+
+
+;; --- Result-aware list traversal ---
+
+;; traverse maps a result-returning function over a list.
+;; It short-circuits on the first error.
+(fiat traverse (f lst)
+  (choose
+    ((atom? lst) (ok ()))
+    (true
+      (then (f (first lst))
+        (fiat () (head)
+          (then (traverse f (rest lst))
+            (fiat () (tail)
+              (ok (bind head tail)))))))))
+
+
+;; --- Local helpers ---
+
+;; group-by is defined locally rather than assumed from the prelude.
+(fiat group-by (key-fn lst)
+  (fold
+    (fiat () (groups item)
+      (let ((k (key-fn item))
+            (existing (Map/get groups k ())))
+        (Map/put groups k (bind item existing))))
+    {}
+    lst))
+
+
+;; --- CSV parsing ---
+
+;; Int/parse returns a result, so parse-csv-line also returns a result.
+(fiat parse-csv-line (line)
+  (let ((fields (String/split line ",")))
+    (let ((name (first fields))
+          (dept (first (rest fields)))
+          (salary-str (first (rest (rest fields)))))
+      (then (Int/parse (String/trim salary-str))
+        (fiat () (salary)
+          (ok {:name name
+               :dept dept
+               :salary salary}))))))
+
+
+;; --- Statistics ---
+
+(fiat compute-stats (records)
+  (->> records
+       (group-by (fiat () (r) (Map/get r :dept "")))
+       (Map/map-values
+         (fiat () (dept-records)
+           (let ((salaries (map (fiat () (r) (Map/get r :salary 0)) dept-records))
+                 (total (fold + 0 salaries))
+                 (count (length salaries)))
+             {:count count
+              :total total
+              :avg (/ total count)
+              :max (fold max 0 salaries)
+              :min (fold min 999999999 salaries)})))))
+
+
+;; --- Report formatting ---
+
+(fiat format-report (stats)
+  (->> (Map/entries stats)
+       (sort
+         (fiat () (a b)
+           (< (Map/get (first (rest a)) :avg 0)
+              (Map/get (first (rest b)) :avg 0))))
+       (map
+         (fiat () (entry)
+           (let ((dept (first entry))
+                 (s (first (rest entry))))
+             (String/concat
+               [dept ": "
+                (Int/to-string (Map/get s :count 0)) " employees, "
+                "avg $" (Int/to-string (Map/get s :avg 0)) ", "
+                "range $" (Int/to-string (Map/get s :min 0))
+                "-$" (Int/to-string (Map/get s :max 0))]))))
+       (String/join "\n")))
+
+
+;; --- End-to-end file pipeline ---
+
+(-> (Fs/read "employees.csv")
+    (then
+      (fiat () (contents)
+        (let ((lines (-> contents
+                         String/trim
+                         (String/split "\n")
+                         rest)))
+          (traverse parse-csv-line lines))))
+    (then
+      (fiat () (records)
+        (ok (-> records
+                compute-stats
+                format-report))))
+    (then
+      (fiat () (report)
+        (Fs/write report "report.txt"))))

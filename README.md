@@ -523,7 +523,7 @@ Module System v1 adds the host-registration mechanism that enables capability ga
 - [x] `Fs/read` and `Fs/write` — file I/O bindings
 - [x] `Process`, `Net`, `Http` module stubs
 - [x] Capability gating verified: embedded context cannot access unregistered modules
-- [ ] **Level 8 benchmarks pass**
+- [x] **Level 8 benchmarks pass**
 
 ### 15. Memory Management Refinement
 

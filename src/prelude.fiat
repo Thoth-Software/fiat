@@ -57,3 +57,32 @@
   (choose
     ((atom? xs) ys)
     (true (bind (first xs) (append (rest xs) ys)))))
+
+;; sort — stable mergesort. `compare` is a two-argument predicate that
+;; returns true when its first argument should come before its second.
+(fiat sort (compare lst)
+  (fiat merge (xs ys)
+    (choose
+      ((atom? xs) ys)
+      ((atom? ys) xs)
+      ((compare (first xs) (first ys))
+        (bind (first xs) (merge (rest xs) ys)))
+      (true
+        (bind (first ys) (merge xs (rest ys))))))
+  (fiat take-n (n l)
+    (choose
+      ((= n 0)    ())
+      ((atom? l)  ())
+      (true (bind (first l) (take-n (- n 1) (rest l))))))
+  (fiat drop-n (n l)
+    (choose
+      ((= n 0)    l)
+      ((atom? l)  ())
+      (true (drop-n (- n 1) (rest l)))))
+  (let ((len (length lst)))
+    (choose
+      ((< len 2) lst)
+      (true
+        (let ((mid (/ len 2)))
+          (merge (sort compare (take-n mid lst))
+                 (sort compare (drop-n mid lst))))))))
