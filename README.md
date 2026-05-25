@@ -467,7 +467,7 @@ This milestone adds string processing and the threading operators to the desugar
 - [x] `->>` thread-last desugaring: insert threaded value as last argument
 - [x] `name->` thread-as desugaring: insert wherever the binding name appears
 - [x] Per-step operator override within a threading pipeline
-- [ ] **Level 3 benchmarks pass**
+- [x] **Level 3 benchmarks pass**
 
 ### 9. Result Type Conventions [Level 4]
 
