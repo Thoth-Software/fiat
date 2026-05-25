@@ -1,5 +1,7 @@
 use std::rc::Rc;
 
+use im_rc::{HashMap as PersistentMap, HashSet as PersistentSet, Vector as PersistentVector};
+
 use crate::env::Env;
 use crate::error::Error;
 use crate::value::{Builtin, BuiltinFn, Cons, Function, InternedSymbol, Value, list_to_vec};
@@ -15,19 +17,32 @@ pub fn eval_program(forms: &[Value], env: &Rc<Env>) -> Result<Value, Error> {
 
 pub fn eval(expr: &Value, env: &Rc<Env>) -> Result<Value, Error> {
     match expr {
-        // Collection variants self-evaluate here; evaluating the elements of
-        // a collection *literal* from the reader is handled in a later issue.
         Value::Nil
         | Value::Bool(_)
         | Value::Int(_)
         | Value::Float(_)
         | Value::String(_)
         | Value::Keyword(_)
-        | Value::Vector(_)
-        | Value::Map(_)
-        | Value::Set(_)
         | Value::Function(_)
         | Value::Builtin(_) => Ok(expr.clone()),
+
+        Value::Vector(items) => {
+            let evaluated: Result<PersistentVector<Value>, Error> =
+                items.iter().map(|item| eval(item, env)).collect();
+            Ok(Value::Vector(Rc::new(evaluated?)))
+        }
+        Value::Map(entries) => {
+            let evaluated: Result<PersistentMap<Value, Value>, Error> = entries
+                .iter()
+                .map(|(k, v)| Ok((eval(k, env)?, eval(v, env)?)))
+                .collect();
+            Ok(Value::Map(Rc::new(evaluated?)))
+        }
+        Value::Set(items) => {
+            let evaluated: Result<PersistentSet<Value>, Error> =
+                items.iter().map(|item| eval(item, env)).collect();
+            Ok(Value::Set(Rc::new(evaluated?)))
+        }
 
         // A symbol resolves to its binding, falling back to a primitive
         // builtin (e.g. `+`, `<`) so primitives are first-class values.
@@ -608,12 +623,60 @@ mod tests {
 
     #[test]
     fn is_q_errors_on_collection_value() {
-        // The reader cannot build `#{}` literals yet, so bind a set value
-        // into the environment and confirm `is?` rejects it.
         let env = Env::new();
         let empty_set = Value::Set(Rc::new(im_rc::HashSet::new()));
         env.set(InternedSymbol::new("s"), empty_set);
         let forms = read("(is? s s)").expect("read error");
         assert!(eval_program(&forms, &env).is_err());
+    }
+
+    #[test]
+    fn eval_vector_literal() {
+        let src = "(let ((x 5)) [x (+ x 1) (+ x 2)])";
+        assert_eq!(
+            eval_str(src).ok().map(|v| v.to_string()),
+            Some("[5 6 7]".to_string())
+        );
+    }
+
+    #[test]
+    fn eval_map_literal() {
+        let src = "{:x (+ 1 2) :y (* 3 4)}";
+        let result = eval_str(src).expect("should eval");
+        let s = result.to_string();
+        assert!(s.contains(":x 3"));
+        assert!(s.contains(":y 12"));
+    }
+
+    #[test]
+    fn eval_set_literal() {
+        let src = "#{(+ 1 2) (* 3 4)}";
+        let result = eval_str(src).expect("should eval");
+        let s = result.to_string();
+        assert!(s.contains('3'));
+        assert!(s.contains("12"));
+    }
+
+    #[test]
+    fn behold_vector_is_inert() {
+        let src = "(let ((x 99)) (behold [x (+ x 1)]))";
+        let result = eval_str(src).expect("should eval");
+        let s = result.to_string();
+        assert!(s.contains('x'));
+        assert!(s.contains("(+ x 1)"));
+    }
+
+    #[test]
+    fn behold_map_is_inert() {
+        let result = eval_str("(behold {:k (+ 1 2)})").expect("should eval");
+        assert_eq!(result.to_string(), "{:k (+ 1 2)}");
+    }
+
+    #[test]
+    fn eval_nested_collection() {
+        let src = "(let ((x 1)) [{:a x} #{x (+ x 1)}])";
+        let result = eval_str(src).expect("should eval");
+        let s = result.to_string();
+        assert!(s.starts_with("[{:a 1}"));
     }
 }
