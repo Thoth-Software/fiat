@@ -1,0 +1,106 @@
+(fiat Lux)
+
+;; --- Entity constructors ---
+
+(fiat make-entity (id kind props)
+  (-> {:id id :kind kind :alive true :tags #{}}
+      (Map/merge props)))
+
+(fiat make-player (id name)
+  (make-entity id :player
+    {:name name :hp 100 :max-hp 100 :mp 50 :pos {:x 0.0 :y 0.0}
+     :inventory [] :tags #{:controllable :collidable}}))
+
+(fiat make-enemy (id name hp damage)
+  (make-entity id :enemy
+    {:name name :hp hp :max-hp hp :damage damage
+     :pos {:x 0.0 :y 0.0} :tags #{:hostile :collidable}}))
+
+(fiat make-item (id name effect)
+  (make-entity id :item
+    {:name name :effect effect :tags #{:pickupable}}))
+
+
+;; --- Pure state transforms ---
+
+(fiat damage-entity (entity amount)
+  (let ((new-hp (max 0 (- (Map/get entity :hp 0) amount))))
+    (-> entity
+        (Map/put :hp new-hp)
+        (Map/put :alive (> new-hp 0)))))
+
+(fiat heal-entity (entity amount)
+  (let ((max-hp (Map/get entity :max-hp 100))
+        (new-hp (min max-hp (+ (Map/get entity :hp 0) amount))))
+    (Map/put entity :hp new-hp)))
+
+(fiat move-entity (entity dx dy)
+  (let ((pos (Map/get entity :pos {:x 0.0 :y 0.0})))
+    (Map/put entity :pos
+      {:x (+ (Map/get pos :x 0.0) dx)
+       :y (+ (Map/get pos :y 0.0) dy)})))
+
+(fiat add-to-inventory (player item)
+  (Map/put player :inventory
+    (Vector/append (Map/get player :inventory []) item)))
+
+
+;; --- Collision detection (distance-based) ---
+
+(fiat distance (e1 e2)
+  (let ((p1 (Map/get e1 :pos {:x 0.0 :y 0.0}))
+        (p2 (Map/get e2 :pos {:x 0.0 :y 0.0}))
+        (dx (- (Map/get p1 :x 0.0) (Map/get p2 :x 0.0)))
+        (dy (- (Map/get p1 :y 0.0) (Map/get p2 :y 0.0))))
+    (Math/sqrt (+ (* dx dx) (* dy dy)))))
+
+(fiat colliding? (e1 e2 radius)
+  (and (has? :collidable (Map/get e1 :tags #{}))
+       (and (has? :collidable (Map/get e2 :tags #{}))
+            (< (distance e1 e2) radius))))
+
+
+;; --- Per-tick update: process all entities against the world ---
+
+(fiat find-collisions (entity others radius)
+  (filter (fiat () (other) (colliding? entity other radius)) others))
+
+(fiat apply-combat (player enemies)
+  (fold
+    (fiat () (state enemy)
+      (choose
+        ((not (Map/get enemy :alive true)) state)
+        (true
+          (let ((dmg (Map/get enemy :damage 10)))
+            {:player (damage-entity (Map/get state :player {}) dmg)
+             :log (bind (String/concat ["Hit by " (Map/get enemy :name "?")
+                                        " for " (Int/to-string dmg) " damage!"])
+                        (Map/get state :log ()))}))))
+    {:player player :log ()}
+    enemies))
+
+(fiat tick (world)
+  (let ((player (Map/get world :player {}))
+        (enemies (->> (Map/get world :entities [])
+                      Vector/to-list
+                      (filter (fiat () (e)
+                        (and (is? (Map/get e :kind ()) :enemy)
+                             (Map/get e :alive true))))))
+        (nearby (find-collisions player enemies 1.5))
+        (result (apply-combat player nearby)))
+    (-> world
+        (Map/put :player (Map/get result :player {}))
+        (Map/put :log (Map/get result :log ())))))
+
+
+;; --- Build a world and simulate one tick ---
+
+(let ((world
+        {:player (-> (make-player :p1 "Hero")
+                     (move-entity 5.0 3.0))
+         :entities [(-> (make-enemy :e1 "Goblin" 30 5)
+                        (move-entity 5.5 3.2))
+                    (-> (make-enemy :e2 "Skeleton" 50 8)
+                        (move-entity 100.0 100.0))
+                    (make-item :i1 "Health Potion" {:type :heal :amount 25})]}))
+  (tick world))

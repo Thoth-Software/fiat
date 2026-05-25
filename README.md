@@ -499,11 +499,11 @@ Level 6 must be self-contained — any helper function used (`length`, `reverse`
 
 Full integration of all features. Requires `Math/sqrt`, `Int/to-string`, `and`, `not`, `max`, `min` to be available.
 
-- [ ] Entity constructors using maps, set tags, nested map state
-- [ ] Pure state transforms: damage, heal, move, inventory
-- [ ] Collision detection with `Math/sqrt`, distance calculations
-- [ ] Per-tick update loop with `fold` over entity lists
-- [ ] **Level 7 benchmarks pass**
+- [x] Entity constructors using maps, set tags, nested map state
+- [x] Pure state transforms: damage, heal, move, inventory
+- [x] Collision detection with `Math/sqrt`, distance calculations
+- [x] Per-tick update loop with `fold` over entity lists
+- [x] **Level 7 benchmarks pass**
 
 ### 13. Full Hygienic Macro Expander
 
