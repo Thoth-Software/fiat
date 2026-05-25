@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::rc::Rc;
 
 use crate::value::{InternedSymbol, Value, list_from_vec, list_to_vec};
 
@@ -17,6 +18,11 @@ pub fn desugar_forms(forms: &[Value]) -> Vec<Value> {
 pub fn desugar(value: &Value) -> Value {
     match value {
         Value::List(_) => desugar_list(value),
+        Value::Vector(v) => Value::Vector(Rc::new(v.iter().map(desugar).collect())),
+        Value::Map(m) => Value::Map(Rc::new(
+            m.iter().map(|(k, v)| (desugar(k), desugar(v))).collect(),
+        )),
+        Value::Set(s) => Value::Set(Rc::new(s.iter().map(desugar).collect())),
         _ => value.clone(),
     }
 }
