@@ -1,0 +1,106 @@
+;; Level 6 — Deriving Combinators (Self-Hosting Stress Test)
+;; No (fiat Lux) — every helper must be defined here.
+
+;; --- Prerequisites ---
+
+;; not — boolean negation
+(fiat not (x)
+  (choose
+    (x false)
+    (true true)))
+
+;; reverse — from Level 0, needed by partition
+(fiat reverse (lst)
+  (fiat go (remaining acc)
+    (choose
+      ((atom? remaining) acc)
+      (true (go (rest remaining) (bind (first remaining) acc)))))
+  (go lst ()))
+
+;; length — needed by sort
+(fiat length (lst)
+  (fiat go (remaining acc)
+    (choose
+      ((atom? remaining) acc)
+      (true (go (rest remaining) (+ acc 1)))))
+  (go lst 0))
+
+;; odd? — needed by partition example
+(fiat odd? (n) (not (= (% n 2) 0)))
+
+;; --- Combinators ---
+
+;; take — first n elements
+(fiat take (n lst)
+  (choose
+    ((= n 0)     ())
+    ((atom? lst) ())
+    (true (bind (first lst) (take (- n 1) (rest lst))))))
+
+;; drop — skip first n elements
+(fiat drop (n lst)
+  (choose
+    ((= n 0)     lst)
+    ((atom? lst) ())
+    (true (drop (- n 1) (rest lst)))))
+
+;; nth — zero-indexed access
+(fiat nth (n lst)
+  (choose
+    ((atom? lst) ())
+    ((= n 0)     (first lst))
+    (true        (nth (- n 1) (rest lst)))))
+
+;; zip-with — generalized zip
+(fiat zip-with (f xs ys)
+  (choose
+    ((atom? xs) ())
+    ((atom? ys) ())
+    (true (bind (f (first xs) (first ys))
+                (zip-with f (rest xs) (rest ys))))))
+
+;; any? — does any element satisfy the predicate?
+(fiat any? (pred lst)
+  (choose
+    ((atom? lst) false)
+    ((pred (first lst)) true)
+    (true (any? pred (rest lst)))))
+
+;; all? — do all elements satisfy the predicate?
+(fiat all? (pred lst)
+  (choose
+    ((atom? lst) true)
+    ((not (pred (first lst))) false)
+    (true (all? pred (rest lst)))))
+
+;; partition — split into (satisfying not-satisfying)
+(fiat partition (pred lst)
+  (fiat go (remaining yes no)
+    (choose
+      ((atom? remaining) (bind (reverse yes) (bind (reverse no) ())))
+      ((pred (first remaining))
+        (go (rest remaining) (bind (first remaining) yes) no))
+      (true
+        (go (rest remaining) yes (bind (first remaining) no)))))
+  (go lst () ()))
+
+;; sort — mergesort using only primitives
+(fiat sort (compare lst)
+  (fiat merge (xs ys)
+    (choose
+      ((atom? xs) ys)
+      ((atom? ys) xs)
+      ((compare (first xs) (first ys))
+        (bind (first xs) (merge (rest xs) ys)))
+      (true
+        (bind (first ys) (merge xs (rest ys))))))
+  (let ((len (length lst)))
+    (choose
+      ((< len 2) lst)
+      (true
+        (let ((mid (/ len 2)))
+          (merge (sort compare (take mid lst))
+                 (sort compare (drop mid lst))))))))
+
+;; --- Run ---
+(sort < '(5 3 8 1 9 2 7))

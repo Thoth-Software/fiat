@@ -489,10 +489,10 @@ Level 5 depends on TCO machinery (milestone 4), Lux imports, maps, sets, `Map/ge
 
 Level 6 must be self-contained — any helper function used (`length`, `reverse`, `not`, `odd?`) must be defined in the benchmark file itself. No Lux import is allowed.
 
-- [ ] Level 6 benchmark file is self-contained with no prelude dependencies
-- [ ] `take`, `drop`, `nth`, `zip-with`, `any?`, `all?`, `partition` derived from primitives
-- [ ] Mergesort derived from primitives
-- [ ] **Level 6 benchmarks pass**
+- [x] Level 6 benchmark file is self-contained with no prelude dependencies
+- [x] `take`, `drop`, `nth`, `zip-with`, `any?`, `all?`, `partition` derived from primitives
+- [x] Mergesort derived from primitives
+- [x] **Level 6 benchmarks pass**
 
 ### 12. Game Entity Integration [Level 7]
 
