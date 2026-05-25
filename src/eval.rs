@@ -4,7 +4,9 @@ use im_rc::{HashMap as PersistentMap, HashSet as PersistentSet, Vector as Persis
 
 use crate::env::Env;
 use crate::error::Error;
-use crate::value::{Builtin, BuiltinFn, Cons, Function, InternedSymbol, Value, list_to_vec};
+use crate::value::{
+    Builtin, BuiltinFn, Cons, Function, InternedSymbol, Value, list_from_vec, list_to_vec,
+};
 
 pub fn eval_program(forms: &[Value], env: &Rc<Env>) -> Result<Value, Error> {
     let mut result = Value::Nil;
@@ -325,6 +327,10 @@ fn builtin_entry(name: &str) -> Option<(&'static str, BuiltinFn)> {
         "union" => ("union", builtin_union),
         "intersect" => ("intersect", builtin_intersect),
         "without" => ("without", builtin_without),
+        "as-codepoints" => ("as-codepoints", builtin_as_codepoints),
+        "as-graphemes" => ("as-graphemes", builtin_as_graphemes),
+        "as-bytes" => ("as-bytes", builtin_as_bytes),
+        "from-codepoints" => ("from-codepoints", builtin_from_codepoints),
         _ => return None,
     })
 }
@@ -515,6 +521,79 @@ fn builtin_without(args: &[Value]) -> Result<Value, Error> {
         (Value::Set(_), _) => Err(Error::type_error("set", args[1].type_name())),
         _ => Err(Error::type_error("set", args[0].type_name())),
     }
+}
+
+// --- String Decomposition ---
+
+fn builtin_as_codepoints(args: &[Value]) -> Result<Value, Error> {
+    if args.len() != 1 {
+        return Err(Error::arity("as-codepoints", 1, args.len()));
+    }
+    match &args[0] {
+        Value::String(s) => {
+            let cps: Vec<Value> = s.chars().map(|c| Value::Int(i64::from(c as u32))).collect();
+            Ok(list_from_vec(cps))
+        }
+        _ => Err(Error::type_error("string", args[0].type_name())),
+    }
+}
+
+fn builtin_as_graphemes(args: &[Value]) -> Result<Value, Error> {
+    if args.len() != 1 {
+        return Err(Error::arity("as-graphemes", 1, args.len()));
+    }
+    match &args[0] {
+        // char-based segmentation (one Rust char = one Unicode scalar value)
+        Value::String(s) => {
+            let gs: Vec<Value> = s
+                .chars()
+                .map(|c| {
+                    let mut buf = [0u8; 4];
+                    Value::String(Rc::from(c.encode_utf8(&mut buf) as &str))
+                })
+                .collect();
+            Ok(list_from_vec(gs))
+        }
+        _ => Err(Error::type_error("string", args[0].type_name())),
+    }
+}
+
+fn builtin_as_bytes(args: &[Value]) -> Result<Value, Error> {
+    if args.len() != 1 {
+        return Err(Error::arity("as-bytes", 1, args.len()));
+    }
+    match &args[0] {
+        Value::String(s) => {
+            let bs: Vec<Value> = s
+                .as_bytes()
+                .iter()
+                .map(|&b| Value::Int(i64::from(b)))
+                .collect();
+            Ok(list_from_vec(bs))
+        }
+        _ => Err(Error::type_error("string", args[0].type_name())),
+    }
+}
+
+fn builtin_from_codepoints(args: &[Value]) -> Result<Value, Error> {
+    if args.len() != 1 {
+        return Err(Error::arity("from-codepoints", 1, args.len()));
+    }
+    let items = list_to_vec(&args[0]);
+    let mut result = String::new();
+    for item in &items {
+        match item {
+            Value::Int(n) => {
+                let cp = u32::try_from(*n)
+                    .map_err(|_| Error::runtime(format!("invalid codepoint: {n}")))?;
+                let c = char::from_u32(cp)
+                    .ok_or_else(|| Error::runtime(format!("invalid codepoint: {n}")))?;
+                result.push(c);
+            }
+            _ => return Err(Error::type_error("int", item.type_name())),
+        }
+    }
+    Ok(Value::String(Rc::from(result.as_str())))
 }
 
 #[cfg(test)]
@@ -1034,5 +1113,105 @@ mod tests {
             eval_str(r#"(fiat Lux) (String/starts-with? "hello" "xyz")"#).ok(),
             Some(Value::Bool(false))
         );
+    }
+
+    #[test]
+    fn as_codepoints_ascii() {
+        let src = r#"(as-codepoints "Hi")"#;
+        assert_eq!(
+            eval_str(src).ok().map(|v| v.to_string()),
+            Some("(72 105)".to_string())
+        );
+    }
+
+    #[test]
+    fn as_codepoints_non_ascii() {
+        let src = r#"(as-codepoints "café")"#;
+        let result = eval_str(src).expect("should eval");
+        let s = result.to_string();
+        // 'é' is U+00E9 = 233
+        assert_eq!(s, "(99 97 102 233)");
+    }
+
+    #[test]
+    fn as_bytes_non_ascii() {
+        let src = r#"(as-bytes "café")"#;
+        let result = eval_str(src).expect("should eval");
+        let s = result.to_string();
+        // 'é' is U+00E9, UTF-8 encoding is 0xC3 0xA9 = 195 169
+        assert_eq!(s, "(99 97 102 195 169)");
+    }
+
+    #[test]
+    fn as_graphemes_ascii() {
+        let src = r#"(as-graphemes "ab")"#;
+        assert_eq!(
+            eval_str(src).ok().map(|v| v.to_string()),
+            Some(r#"("a" "b")"#.to_string())
+        );
+    }
+
+    #[test]
+    fn as_graphemes_non_ascii() {
+        let src = r#"(as-graphemes "café")"#;
+        let result = eval_str(src).expect("should eval");
+        let s = result.to_string();
+        assert_eq!(s, r#"("c" "a" "f" "é")"#);
+    }
+
+    #[test]
+    fn from_codepoints_basic() {
+        let src = "(from-codepoints '(72 101 108 108 111))";
+        assert_eq!(eval_str(src).ok(), Some(Value::String(Rc::from("Hello"))));
+    }
+
+    #[test]
+    fn from_codepoints_roundtrip() {
+        let src = r#"(from-codepoints (as-codepoints "Hello"))"#;
+        assert_eq!(eval_str(src).ok(), Some(Value::String(Rc::from("Hello"))));
+    }
+
+    #[test]
+    fn from_codepoints_roundtrip_non_ascii() {
+        let src = r#"(from-codepoints (as-codepoints "café"))"#;
+        assert_eq!(eval_str(src).ok(), Some(Value::String(Rc::from("café"))));
+    }
+
+    #[test]
+    fn from_codepoints_invalid() {
+        let src = "(from-codepoints '(1114112))";
+        assert!(eval_str(src).is_err());
+    }
+
+    #[test]
+    fn from_codepoints_type_error() {
+        let src = r#"(from-codepoints '("a"))"#;
+        assert!(eval_str(src).is_err());
+    }
+
+    #[test]
+    fn as_codepoints_type_error() {
+        assert!(eval_str("(as-codepoints 42)").is_err());
+    }
+
+    #[test]
+    fn as_bytes_type_error() {
+        assert!(eval_str("(as-bytes 42)").is_err());
+    }
+
+    #[test]
+    fn as_graphemes_type_error() {
+        assert!(eval_str("(as-graphemes 42)").is_err());
+    }
+
+    #[test]
+    fn codepoints_vs_bytes_distinction() {
+        // 'é' (U+00E9) is 1 codepoint but 2 bytes in UTF-8
+        let cp_src = r#"(as-codepoints "é")"#;
+        let by_src = r#"(as-bytes "é")"#;
+        let cp = eval_str(cp_src).expect("codepoints");
+        let by = eval_str(by_src).expect("bytes");
+        assert_eq!(cp.to_string(), "(233)");
+        assert_eq!(by.to_string(), "(195 169)");
     }
 }
