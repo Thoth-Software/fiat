@@ -1,3 +1,4 @@
+mod firmamentum;
 mod float;
 mod int;
 mod map;
@@ -117,6 +118,14 @@ pub fn import_lux(env: &Rc<Env>) -> Result<Value, Error> {
 pub fn import_module(name: &str, env: &Rc<Env>) -> Result<Value, Error> {
     match name {
         "Lux" => import_lux(env),
+        "Firmamentum" => {
+            if !env.has_capability("Firmamentum") {
+                return Err(Error::runtime(
+                    "module unavailable: Firmamentum (not registered by host)",
+                ));
+            }
+            firmamentum::import(env)
+        }
         _ => Err(Error::runtime(format!("unknown module: {name}"))),
     }
 }

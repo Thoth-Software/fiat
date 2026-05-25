@@ -19,12 +19,15 @@ fn main() -> ExitCode {
 
 /// Build the top-level environment: the prelude is loaded by default, but
 /// `--no-prelude` gives a bare environment (Levels 0 and 6 run without it).
+/// Standalone mode registers Firmamentum so scripts can use I/O capabilities.
 fn make_env(no_prelude: bool) -> Result<Rc<Env>, Error> {
-    if no_prelude {
-        Ok(Env::new())
+    let env = if no_prelude {
+        Env::new()
     } else {
-        prelude::environment()
-    }
+        prelude::environment()?
+    };
+    env.register_capability("Firmamentum".to_string());
+    Ok(env)
 }
 
 /// Read and evaluate a whole program, returning the value of the final form.

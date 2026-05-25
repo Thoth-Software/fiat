@@ -28,6 +28,14 @@ pub fn environment() -> Result<Rc<Env>, Error> {
     Ok(env)
 }
 
+/// Create a fresh top-level environment with the prelude loaded and
+/// Firmamentum registered, matching the standalone CLI runner.
+pub fn scripting_environment() -> Result<Rc<Env>, Error> {
+    let env = environment()?;
+    env.register_capability("Firmamentum".to_string());
+    Ok(env)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -937,6 +937,44 @@ mod tests {
     }
 
     #[test]
+    fn firmamentum_without_capability_errors() {
+        let env = crate::env::Env::new();
+        let forms = crate::reader::read("(fiat Firmamentum)").expect("read");
+        let result = eval_program(&forms, &env);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("not registered"),
+            "expected 'not registered' in error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn firmamentum_with_capability_succeeds() {
+        let env = crate::env::Env::new();
+        env.register_capability("Firmamentum".to_string());
+        let forms = crate::reader::read("(fiat Firmamentum)").expect("read");
+        assert_eq!(eval_program(&forms, &env).ok(), Some(Value::Nil));
+    }
+
+    #[test]
+    fn firmamentum_stubs_are_bound_after_import() {
+        let env = crate::env::Env::new();
+        env.register_capability("Firmamentum".to_string());
+        let forms = crate::reader::read("(fiat Firmamentum) Fs/read").expect("read");
+        let result = eval_program(&forms, &env);
+        assert!(result.is_ok(), "Fs/read should be bound after import");
+    }
+
+    #[test]
+    fn firmamentum_functions_unbound_without_import() {
+        let env = crate::env::Env::new();
+        env.register_capability("Firmamentum".to_string());
+        let forms = crate::reader::read("Fs/read").expect("read");
+        assert!(eval_program(&forms, &env).is_err());
+    }
+
+    #[test]
     fn namespaced_call_after_import() {
         assert_eq!(
             eval_str("(fiat Lux) (Int/to-string 42)").ok(),
