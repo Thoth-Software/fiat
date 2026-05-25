@@ -1,7 +1,11 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
+
+use im_rc::{HashMap as PersistentMap, HashSet as PersistentSet, Vector as PersistentVector};
 
 use crate::env::Env;
 use crate::error::Error;
@@ -120,6 +124,9 @@ pub enum Value {
     Symbol(InternedSymbol),
     Keyword(InternedSymbol),
     List(Rc<Cons>),
+    Vector(Rc<PersistentVector<Self>>),
+    Map(Rc<PersistentMap<Self, Self>>),
+    Set(Rc<PersistentSet<Self>>),
     Function(Rc<Function>),
     Builtin(Builtin),
 }
@@ -135,13 +142,19 @@ impl Value {
             Self::Symbol(_) => "symbol",
             Self::Keyword(_) => "keyword",
             Self::List(_) => "list",
+            Self::Vector(_) => "vector",
+            Self::Map(_) => "map",
+            Self::Set(_) => "set",
             Self::Function(_) => "function",
             Self::Builtin(_) => "builtin",
         }
     }
 
     pub const fn is_atom(&self) -> bool {
-        !matches!(self, Self::List(_))
+        !matches!(
+            self,
+            Self::List(_) | Self::Vector(_) | Self::Map(_) | Self::Set(_)
+        )
     }
 
     pub const fn is_truthy(&self) -> bool {
@@ -217,6 +230,36 @@ impl fmt::Display for Value {
                 }
                 write!(f, ")")
             }
+            Self::Vector(items) => {
+                write!(f, "[")?;
+                for (i, item) in items.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
+                    write!(f, "{item}")?;
+                }
+                write!(f, "]")
+            }
+            Self::Map(entries) => {
+                write!(f, "{{")?;
+                for (i, (key, value)) in entries.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
+                    write!(f, "{key} {value}")?;
+                }
+                write!(f, "}}")
+            }
+            Self::Set(items) => {
+                write!(f, "#{{")?;
+                for (i, item) in items.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
+                    write!(f, "{item}")?;
+                }
+                write!(f, "}}")
+            }
             Self::Function(func) => write!(f, "{func}"),
             Self::Builtin(b) => write!(f, "{b}"),
         }
@@ -235,6 +278,9 @@ impl PartialEq for Value {
             (Self::String(a), Self::String(b)) => *a == *b,
             (Self::Symbol(a), Self::Symbol(b)) | (Self::Keyword(a), Self::Keyword(b)) => a == b,
             (Self::List(a), Self::List(b)) => a.head == b.head && a.tail == b.tail,
+            (Self::Vector(a), Self::Vector(b)) => a == b,
+            (Self::Map(a), Self::Map(b)) => a == b,
+            (Self::Set(a), Self::Set(b)) => a == b,
             (Self::Function(a), Self::Function(b)) => Rc::ptr_eq(a, b),
             (Self::Builtin(a), Self::Builtin(b)) => a.name == b.name,
             _ => false,
@@ -243,6 +289,54 @@ impl PartialEq for Value {
 }
 
 impl Eq for Value {}
+
+// --- Hash ---
+//
+// Consistent with `PartialEq`: equal values hash equally. Strings and
+// collections hash by content; maps and sets combine entry hashes with a
+// commutative fold so iteration order does not affect the result.
+
+impl Hash for Value {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        std::mem::discriminant(self).hash(state);
+        match self {
+            Self::Nil => {}
+            Self::Bool(b) => b.hash(state),
+            Self::Int(n) => n.hash(state),
+            Self::Float(n) => n.to_bits().hash(state),
+            Self::String(s) => s.hash(state),
+            Self::Symbol(s) | Self::Keyword(s) => s.name().hash(state),
+            Self::List(cons) => {
+                cons.head.hash(state);
+                cons.tail.hash(state);
+            }
+            Self::Vector(items) => {
+                for item in items.iter() {
+                    item.hash(state);
+                }
+            }
+            Self::Map(entries) => {
+                let combined = entries.iter().fold(0u64, |acc, (key, value)| {
+                    let mut entry = DefaultHasher::new();
+                    key.hash(&mut entry);
+                    value.hash(&mut entry);
+                    acc.wrapping_add(entry.finish())
+                });
+                state.write_u64(combined);
+            }
+            Self::Set(items) => {
+                let combined = items.iter().fold(0u64, |acc, item| {
+                    let mut entry = DefaultHasher::new();
+                    item.hash(&mut entry);
+                    acc.wrapping_add(entry.finish())
+                });
+                state.write_u64(combined);
+            }
+            Self::Function(func) => std::ptr::hash(Rc::as_ptr(func), state),
+            Self::Builtin(b) => b.name.hash(state),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -324,5 +418,99 @@ mod tests {
         assert!(Value::Bool(true).is_truthy());
         assert!(Value::Int(0).is_truthy());
         assert!(Value::String(Rc::from("")).is_truthy());
+    }
+
+    fn vector(items: Vec<Value>) -> Value {
+        Value::Vector(Rc::new(items.into_iter().collect()))
+    }
+
+    fn map(entries: Vec<(Value, Value)>) -> Value {
+        Value::Map(Rc::new(entries.into_iter().collect()))
+    }
+
+    fn set(items: Vec<Value>) -> Value {
+        Value::Set(Rc::new(items.into_iter().collect()))
+    }
+
+    fn kw(name: &str) -> Value {
+        Value::Keyword(InternedSymbol::new(name))
+    }
+
+    #[test]
+    fn collections_are_not_atoms() {
+        assert!(!vector(vec![Value::Int(1)]).is_atom());
+        assert!(!map(vec![(kw("a"), Value::Int(1))]).is_atom());
+        assert!(!set(vec![kw("a")]).is_atom());
+    }
+
+    #[test]
+    fn collection_type_names() {
+        assert_eq!(vector(vec![]).type_name(), "vector");
+        assert_eq!(map(vec![]).type_name(), "map");
+        assert_eq!(set(vec![]).type_name(), "set");
+    }
+
+    #[test]
+    fn display_vector() {
+        assert_eq!(
+            vector(vec![Value::Int(1), Value::Int(2), Value::Int(3)]).to_string(),
+            "[1 2 3]"
+        );
+        assert_eq!(vector(vec![]).to_string(), "[]");
+    }
+
+    #[test]
+    fn display_single_entry_map() {
+        assert_eq!(map(vec![(kw("a"), Value::Int(1))]).to_string(), "{:a 1}");
+    }
+
+    #[test]
+    fn display_single_element_set() {
+        assert_eq!(set(vec![kw("x")]).to_string(), "#{:x}");
+    }
+
+    #[test]
+    fn structural_equality_independent_of_insertion_order() {
+        let a = map(vec![(kw("a"), Value::Int(1)), (kw("b"), Value::Int(2))]);
+        let b = map(vec![(kw("b"), Value::Int(2)), (kw("a"), Value::Int(1))]);
+        assert_eq!(a, b);
+
+        let s1 = set(vec![kw("a"), kw("b"), kw("c")]);
+        let s2 = set(vec![kw("c"), kw("a"), kw("b")]);
+        assert_eq!(s1, s2);
+
+        assert_eq!(
+            vector(vec![Value::Int(1), Value::Int(2)]),
+            vector(vec![Value::Int(1), Value::Int(2)])
+        );
+        assert_ne!(
+            vector(vec![Value::Int(1), Value::Int(2)]),
+            vector(vec![Value::Int(2), Value::Int(1)])
+        );
+    }
+
+    #[test]
+    fn equal_collections_hash_equally() {
+        fn hash(value: &Value) -> u64 {
+            let mut hasher = DefaultHasher::new();
+            value.hash(&mut hasher);
+            hasher.finish()
+        }
+        let a = map(vec![(kw("a"), Value::Int(1)), (kw("b"), Value::Int(2))]);
+        let b = map(vec![(kw("b"), Value::Int(2)), (kw("a"), Value::Int(1))]);
+        assert_eq!(hash(&a), hash(&b));
+
+        // Collections are usable as map keys / set members.
+        let nested = set(vec![
+            vector(vec![Value::Int(1)]),
+            vector(vec![Value::Int(2)]),
+        ]);
+        assert_eq!(
+            nested,
+            set(vec![
+                vector(vec![Value::Int(2)]),
+                vector(vec![Value::Int(1)])
+            ])
+        );
     }
 }
