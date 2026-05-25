@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-# None! You don't need any until Level 2 (when you implement persistent vectors).
+im-rc = "15"
 
 [lints.rust]
 unsafe_code = "deny"

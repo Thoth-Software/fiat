@@ -15,12 +15,17 @@ pub fn eval_program(forms: &[Value], env: &Rc<Env>) -> Result<Value, Error> {
 
 pub fn eval(expr: &Value, env: &Rc<Env>) -> Result<Value, Error> {
     match expr {
+        // Collection variants self-evaluate here; evaluating the elements of
+        // a collection *literal* from the reader is handled in a later issue.
         Value::Nil
         | Value::Bool(_)
         | Value::Int(_)
         | Value::Float(_)
         | Value::String(_)
         | Value::Keyword(_)
+        | Value::Vector(_)
+        | Value::Map(_)
+        | Value::Set(_)
         | Value::Function(_)
         | Value::Builtin(_) => Ok(expr.clone()),
 
@@ -599,5 +604,16 @@ mod tests {
     #[test]
     fn unbound_non_builtin_symbol_errors() {
         assert!(eval_str("nope").is_err());
+    }
+
+    #[test]
+    fn is_q_errors_on_collection_value() {
+        // The reader cannot build `#{}` literals yet, so bind a set value
+        // into the environment and confirm `is?` rejects it.
+        let env = Env::new();
+        let empty_set = Value::Set(Rc::new(im_rc::HashSet::new()));
+        env.set(InternedSymbol::new("s"), empty_set);
+        let forms = read("(is? s s)").expect("read error");
+        assert!(eval_program(&forms, &env).is_err());
     }
 }
