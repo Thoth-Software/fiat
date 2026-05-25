@@ -1,0 +1,49 @@
+(fiat Lux)
+
+;; 3a. Slugify a title
+
+(fiat slugify (title)
+  (-> title
+      String/downcase
+      String/trim
+      (String/replace " " "-")
+      (String/replace "'" "")))
+
+;; 3b. Palindrome check via codepoint decomposition
+
+(fiat lists-equal? (xs ys)
+  (choose
+    ((atom? xs) (atom? ys))
+    ((atom? ys) false)
+    ((not (is? (first xs) (first ys))) false)
+    (true (lists-equal? (rest xs) (rest ys)))))
+
+(fiat palindrome? (s)
+  (let ((cps (-> s String/downcase String/trim as-codepoints)))
+    (lists-equal? cps (reverse cps))))
+
+;; 3c. Extract all words longer than n characters
+
+(fiat long-words (text min-len)
+  (->> (String/split text " ")
+       (filter (fiat () (w) (> (String/length w) min-len)))))
+
+;; 3d. Caesar cipher via codepoint manipulation
+
+(fiat caesar-encrypt (text shift)
+  (let ((encrypt-char
+          (fiat () (cp)
+            (choose
+              ;; lowercase a-z: codepoints 97-122
+              ((and (>= cp 97) (<= cp 122))
+                (+ 97 (% (+ (- cp 97) shift) 26)))
+              ;; uppercase A-Z: codepoints 65-90
+              ((and (>= cp 65) (<= cp 90))
+                (+ 65 (% (+ (- cp 65) shift) 26)))
+              (true cp)))))
+    (-> text
+        as-codepoints
+        ->> (map encrypt-char)
+        from-codepoints)))
+
+(caesar-encrypt (caesar-encrypt "Hello" 3) 23)

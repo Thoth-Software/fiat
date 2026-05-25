@@ -286,12 +286,18 @@ Validates: `as-codepoints`, `map` over codepoints, arithmetic on characters.
               (true cp)))))
     (-> text
         as-codepoints
-        (map encrypt-char)
+        ->> (map encrypt-char)
         from-codepoints)))
 
 (caesar-encrypt "Hello" 3)                     ;; → "Khoor"
 (caesar-encrypt (caesar-encrypt "Hello" 3) 23) ;; → "Hello"
 ```
+
+> **Note:** The `map` step uses a `->>` per-step override because the prelude's
+> `map` takes `(f lst)` order (function first, as in Level 1b's
+> `(map add5 '(1 2 3 4))`), while `->` threads the accumulator into the first
+> argument position. Without the override, the codepoints list would land in the
+> function slot. This is exactly the scenario per-step overrides are designed for.
 
 ---
 
