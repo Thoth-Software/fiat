@@ -311,7 +311,7 @@ fn eval_bind(tail: &Value, env: &Rc<Env>) -> Result<Value, Error> {
     }
 }
 
-// --- Built-in Arithmetic ---
+// --- Built-in Arithmetic & Set Operations ---
 
 fn builtin_entry(name: &str) -> Option<(&'static str, BuiltinFn)> {
     Some(match name {
@@ -323,6 +323,11 @@ fn builtin_entry(name: &str) -> Option<(&'static str, BuiltinFn)> {
         ">" => (">", builtin_gt),
         "<" => ("<", builtin_lt),
         "=" => ("=", builtin_eq),
+        "set?" => ("set?", builtin_set_q),
+        "has?" => ("has?", builtin_has_q),
+        "union" => ("union", builtin_union),
+        "intersect" => ("intersect", builtin_intersect),
+        "without" => ("without", builtin_without),
         _ => return None,
     })
 }
@@ -455,6 +460,64 @@ fn builtin_eq(args: &[Value]) -> Result<Value, Error> {
         |a, b| Ok(Value::Bool(a == b)),
         |a, b| Ok(Value::Bool(a == b)),
     )
+}
+
+// --- Set Operations ---
+
+fn builtin_set_q(args: &[Value]) -> Result<Value, Error> {
+    if args.len() != 1 {
+        return Err(Error::arity("set?", 1, args.len()));
+    }
+    Ok(Value::Bool(matches!(args[0], Value::Set(_))))
+}
+
+fn builtin_has_q(args: &[Value]) -> Result<Value, Error> {
+    if args.len() != 2 {
+        return Err(Error::arity("has?", 2, args.len()));
+    }
+    match &args[1] {
+        Value::Set(s) => Ok(Value::Bool(s.contains(&args[0]))),
+        _ => Err(Error::type_error("set", args[1].type_name())),
+    }
+}
+
+fn builtin_union(args: &[Value]) -> Result<Value, Error> {
+    if args.len() != 2 {
+        return Err(Error::arity("union", 2, args.len()));
+    }
+    match (&args[0], &args[1]) {
+        (Value::Set(a), Value::Set(b)) => {
+            Ok(Value::Set(Rc::new((**a).clone().union((**b).clone()))))
+        }
+        (Value::Set(_), _) => Err(Error::type_error("set", args[1].type_name())),
+        _ => Err(Error::type_error("set", args[0].type_name())),
+    }
+}
+
+fn builtin_intersect(args: &[Value]) -> Result<Value, Error> {
+    if args.len() != 2 {
+        return Err(Error::arity("intersect", 2, args.len()));
+    }
+    match (&args[0], &args[1]) {
+        (Value::Set(a), Value::Set(b)) => Ok(Value::Set(Rc::new(
+            (**a).clone().intersection((**b).clone()),
+        ))),
+        (Value::Set(_), _) => Err(Error::type_error("set", args[1].type_name())),
+        _ => Err(Error::type_error("set", args[0].type_name())),
+    }
+}
+
+fn builtin_without(args: &[Value]) -> Result<Value, Error> {
+    if args.len() != 2 {
+        return Err(Error::arity("without", 2, args.len()));
+    }
+    match (&args[0], &args[1]) {
+        (Value::Set(a), Value::Set(b)) => {
+            Ok(Value::Set(Rc::new((**a).clone().difference((**b).clone()))))
+        }
+        (Value::Set(_), _) => Err(Error::type_error("set", args[1].type_name())),
+        _ => Err(Error::type_error("set", args[0].type_name())),
+    }
 }
 
 #[cfg(test)]
@@ -678,5 +741,86 @@ mod tests {
         let result = eval_str(src).expect("should eval");
         let s = result.to_string();
         assert!(s.starts_with("[{:a 1}"));
+    }
+
+    #[test]
+    fn set_q_true_for_set() {
+        assert_eq!(eval_str("(set? #{1 2})").ok(), Some(Value::Bool(true)));
+    }
+
+    #[test]
+    fn set_q_false_for_list() {
+        assert_eq!(eval_str("(set? '(1 2))").ok(), Some(Value::Bool(false)));
+    }
+
+    #[test]
+    fn has_q_found() {
+        assert_eq!(
+            eval_str("(has? 'a #{'a 'b 'c})").ok(),
+            Some(Value::Bool(true))
+        );
+    }
+
+    #[test]
+    fn has_q_not_found() {
+        assert_eq!(
+            eval_str("(has? 'z #{'a 'b})").ok(),
+            Some(Value::Bool(false))
+        );
+    }
+
+    #[test]
+    fn has_q_type_error() {
+        assert!(eval_str("(has? 1 '(1 2))").is_err());
+    }
+
+    #[test]
+    fn union_sets() {
+        let result = eval_str("(union #{'a 'b} #{'b 'c})").expect("should eval");
+        if let Value::Set(s) = &result {
+            assert_eq!(s.len(), 3);
+            assert!(s.contains(&Value::Symbol(InternedSymbol::new("a"))));
+            assert!(s.contains(&Value::Symbol(InternedSymbol::new("b"))));
+            assert!(s.contains(&Value::Symbol(InternedSymbol::new("c"))));
+        } else {
+            panic!("expected set");
+        }
+    }
+
+    #[test]
+    fn intersect_sets() {
+        let result = eval_str("(intersect #{'a 'b 'c} #{'b 'c 'd})").expect("should eval");
+        if let Value::Set(s) = &result {
+            assert_eq!(s.len(), 2);
+            assert!(s.contains(&Value::Symbol(InternedSymbol::new("b"))));
+            assert!(s.contains(&Value::Symbol(InternedSymbol::new("c"))));
+        } else {
+            panic!("expected set");
+        }
+    }
+
+    #[test]
+    fn without_sets() {
+        let result = eval_str("(without #{'a 'b 'c} #{'b})").expect("should eval");
+        if let Value::Set(s) = &result {
+            assert_eq!(s.len(), 2);
+            assert!(s.contains(&Value::Symbol(InternedSymbol::new("a"))));
+            assert!(s.contains(&Value::Symbol(InternedSymbol::new("c"))));
+        } else {
+            panic!("expected set");
+        }
+    }
+
+    #[test]
+    fn union_type_error() {
+        assert!(eval_str("(union #{'a} '(b))").is_err());
+    }
+
+    #[test]
+    fn set_ops_are_first_class() {
+        assert_eq!(
+            eval_str("set?").ok().map(|v| v.to_string()),
+            Some("<builtin set?>".to_string())
+        );
     }
 }
