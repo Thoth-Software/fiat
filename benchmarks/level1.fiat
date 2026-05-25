@@ -1,0 +1,44 @@
+;; Level 1 — Higher-Order Functions and Closures
+;; Lexical scoping, functions as values, closure capture.
+;; Uses the automatic prelude (map).
+
+;; --- 1a. Compose two functions into one ---
+
+(fiat compose (f g)
+  (fiat () (x) (f (g x))))
+
+(let ((inc-then-double (compose (fiat () (x) (* x 2))
+                                (fiat () (x) (+ x 1)))))
+  (inc-then-double 4))   ;; → 10  (4+1=5, 5*2=10)
+
+;; --- 1b. Currying — partial application by returning closures ---
+
+(fiat add (a)
+  (fiat () (b) (+ a b)))
+
+(let ((add5 (add 5)))
+  (map add5 '(1 2 3 4)))   ;; → (6 7 8 9)
+
+;; --- 1c. Church booleans — proving functions-as-values work ---
+
+(fiat T (a b) a)
+(fiat F (a b) b)
+(fiat church-not (p) (p F T))
+(fiat church-and (p q) (p q F))
+(fiat church-or (p q) (p T q))
+
+(church-not T)             ;; → F  (the function object)
+((church-and T T) 'y 'n)   ;; → y
+((church-or F T) 'y 'n)    ;; → y
+((church-or F F) 'y 'n)    ;; → n
+
+;; --- 1d. Accumulator factory — independent counters via closures ---
+
+(fiat make-counter (start)
+  (fiat () ()
+    (bind start (bind (make-counter (+ start 1)) ()))))
+
+(let ((c (make-counter 0)))
+  (let ((r1 (c)))                  ;; r1 = (0 <next>)
+    (let ((r2 ((first (rest r1))))) ;; call next counter
+      (first r2))))                ;; → 1
