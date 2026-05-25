@@ -24,6 +24,10 @@ fn lux_entries() -> &'static [Entry] {
             func: int::to_string,
         },
         Entry {
+            name: "Int/parse",
+            func: int::parse,
+        },
+        Entry {
             name: "Float/to-string",
             func: float::to_string,
         },
