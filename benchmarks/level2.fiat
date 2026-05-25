@@ -1,0 +1,47 @@
+;; Level 2 — Collection Types in Concert
+;; Maps, vectors, sets working together with higher-order prelude functions.
+
+(fiat Lux)
+
+;; --- 2a. Build a frequency map from a list ---
+
+(fiat frequencies (lst)
+  (fold
+    (fiat () (counts item)
+      (Map/put counts item (+ 1 (Map/get counts item 0))))
+    {}
+    lst))
+
+(frequencies '(a b a c b a))   ;; → {a 3 b 2 c 1}
+
+;; --- 2b. Group-by: partition a list into a map of lists by key function ---
+
+(fiat group-by (key-fn lst)
+  (fold
+    (fiat () (groups item)
+      (let ((k (key-fn item))
+            (existing (Map/get groups k ())))
+        (Map/put groups k (bind item existing))))
+    {}
+    lst))
+
+(group-by
+  (fiat () (n) (choose ((= (% n 2) 0) :even) (true :odd)))
+  '(1 2 3 4 5 6 7 8))
+;; → {:odd (7 5 3 1) :even (8 6 4 2)}
+
+;; --- 2c. Set-driven filtering — keep only items in the allowed set ---
+
+(fiat allow-only (allowed lst)
+  (filter (fiat () (x) (has? x allowed)) lst))
+
+(allow-only #{:a :c :e} '(:a :b :c :d :e :f))   ;; → (:a :c :e)
+
+;; --- 2d. Index a vector of records by a key field ---
+
+(let ((people [{:name "Alice" :dept :eng}
+               {:name "Bob" :dept :design}
+               {:name "Carol" :dept :eng}]))
+  (group-by (fiat () (p) (Map/get p :dept ())) (Vector/to-list people)))
+;; → {:eng ({:name "Carol" :dept :eng} {:name "Alice" :dept :eng})
+;;    :design ({:name "Bob" :dept :design})}
