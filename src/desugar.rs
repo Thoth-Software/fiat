@@ -25,11 +25,13 @@ fn desugar_list(value: &Value) -> Value {
     let items = list_to_vec(value);
     if let Some(head) = items.first().and_then(Value::as_symbol) {
         match head.name() {
-            // Quoted data: return verbatim, do not descend.
             "behold" => return value.clone(),
             "let" if items.len() >= 2 => return desugar_let(&items),
             "and" if items.len() == 3 => return desugar_and(&items[1], &items[2]),
             "or" if items.len() == 3 => return desugar_or(&items[1], &items[2]),
+            name if is_threading_op(name) && items.len() >= 3 => {
+                return desugar_threading(name, &items[1..]);
+            }
             _ => {}
         }
     }
@@ -114,6 +116,111 @@ fn fresh_or_tmp() -> Value {
         current
     });
     Value::Symbol(InternedSymbol::new(&format!("__or_tmp_{n}")))
+}
+
+fn is_threading_op(name: &str) -> bool {
+    name == "->" || name == "->>" || name.ends_with("->")
+}
+
+#[derive(Clone)]
+enum ThreadMode {
+    First,
+    Last,
+    As(String),
+}
+
+fn parse_thread_mode(name: &str) -> ThreadMode {
+    match name {
+        "->" => ThreadMode::First,
+        "->>" => ThreadMode::Last,
+        _ => {
+            let binding = &name[..name.len() - 2];
+            ThreadMode::As(binding.to_string())
+        }
+    }
+}
+
+fn desugar_threading(op_name: &str, rest: &[Value]) -> Value {
+    let default_mode = parse_thread_mode(op_name);
+    let init = desugar(&rest[0]);
+    let steps = &rest[1..];
+
+    let mut acc = init;
+    let mut i = 0;
+    while i < steps.len() {
+        let (mode, step) = if let Some(s) = steps[i].as_symbol() {
+            if is_threading_op(s.name()) {
+                i += 1;
+                if i >= steps.len() {
+                    break;
+                }
+                (parse_thread_mode(s.name()), &steps[i])
+            } else {
+                (default_mode.clone(), &steps[i])
+            }
+        } else {
+            (default_mode.clone(), &steps[i])
+        };
+
+        acc = apply_thread_step(&mode, acc, step);
+        i += 1;
+    }
+    acc
+}
+
+fn apply_thread_step(mode: &ThreadMode, acc: Value, step: &Value) -> Value {
+    let step_items = match step {
+        Value::List(_) => list_to_vec(step),
+        other => vec![other.clone()],
+    };
+
+    match mode {
+        ThreadMode::First => {
+            let mut call = vec![desugar(&step_items[0]), acc];
+            call.extend(step_items[1..].iter().map(desugar));
+            list_from_vec(call)
+        }
+        ThreadMode::Last => {
+            let mut call = vec![desugar(&step_items[0])];
+            call.extend(step_items[1..].iter().map(desugar));
+            call.push(acc);
+            list_from_vec(call)
+        }
+        ThreadMode::As(binding) => {
+            let binding_sym = sym(binding);
+            let body = if step_items.len() == 1 {
+                list_from_vec(vec![desugar(&step_items[0]), binding_sym.clone()])
+            } else {
+                let replaced: Vec<Value> = step_items
+                    .iter()
+                    .map(|item| replace_binding(item, binding, &binding_sym))
+                    .map(|v| desugar(&v))
+                    .collect();
+                list_from_vec(replaced)
+            };
+            desugar(&list_from_vec(vec![
+                sym("let"),
+                list_from_vec(vec![list_from_vec(vec![binding_sym, acc])]),
+                body,
+            ]))
+        }
+    }
+}
+
+fn replace_binding(value: &Value, binding: &str, binding_sym: &Value) -> Value {
+    match value {
+        Value::Symbol(s) if s.name() == binding => binding_sym.clone(),
+        Value::List(_) => {
+            let items = list_to_vec(value);
+            list_from_vec(
+                items
+                    .iter()
+                    .map(|v| replace_binding(v, binding, binding_sym))
+                    .collect(),
+            )
+        }
+        _ => value.clone(),
+    }
 }
 
 fn sym(name: &str) -> Value {
@@ -235,5 +342,98 @@ mod tests {
         let out = desugared("(or a b)");
         assert!(out.starts_with("((fiat () (__or_tmp"), "got: {out}");
         assert!(out.contains("(choose"), "got: {out}");
+    }
+
+    #[test]
+    fn thread_first_basic() {
+        assert_eq!(desugared("(-> x (f 1) (g 2))"), "(g (f x 1) 2)");
+    }
+
+    #[test]
+    fn thread_first_bare_symbol() {
+        assert_eq!(desugared("(-> x f g)"), "(g (f x))");
+    }
+
+    #[test]
+    fn thread_last_basic() {
+        assert_eq!(desugared("(->> x (f 1) (g 2))"), "(g 2 (f 1 x))");
+    }
+
+    #[test]
+    fn thread_last_bare_symbol() {
+        assert_eq!(desugared("(->> x f g)"), "(g (f x))");
+    }
+
+    #[test]
+    fn thread_as_basic() {
+        let out = desugared("(it-> x (+ it 2) (some-fn 1 it 3))");
+        assert!(out.contains("(+ it 2)"), "got: {out}");
+        assert!(out.contains("(some-fn 1 it 3)"), "got: {out}");
+    }
+
+    #[test]
+    fn thread_first_per_step_override() {
+        // (-> x (+ 2) ->> (- 3)) => ->> applied to (- 3) with acc = (+ x 2)
+        // step 1: (+ x 2), step 2 override ->>: (- 3 (+ x 2))
+        assert_eq!(desugared("(-> x (+ 2) ->> (- 3))"), "(- 3 (+ x 2))");
+    }
+
+    #[test]
+    fn thread_last_per_step_override() {
+        // (->> x (filter odd?) -> (nth 3))
+        // step 1 ->>: (filter odd? x), step 2 override ->: (nth (filter odd? x) 3)
+        assert_eq!(
+            desugared("(->> x (filter odd?) -> (nth 3))"),
+            "(nth (filter odd? x) 3)"
+        );
+    }
+
+    #[test]
+    fn thread_first_with_name_override() {
+        // (-> x (+ 2) val-> (some-fn 1 val 3))
+        let out = desugared("(-> x (+ 2) val-> (some-fn 1 val 3))");
+        assert!(out.contains("(some-fn 1 val 3)"), "got: {out}");
+    }
+
+    #[test]
+    fn thread_first_evaluates() {
+        let result = run("(-> 1 (+ 2) (* 3))");
+        // (-> 1 (+ 2) (* 3)) => (* (+ 1 2) 3) => (* 3 3) => 9
+        assert_eq!(result, Value::Int(9));
+    }
+
+    #[test]
+    fn thread_last_evaluates() {
+        let result = run("(->> 10 (- 3))");
+        // (->> 10 (- 3)) => (- 3 10) => -7
+        assert_eq!(result, Value::Int(-7));
+    }
+
+    #[test]
+    fn thread_as_evaluates() {
+        let result = run("(it-> 5 (+ it it) (* it 2))");
+        // step 1: it=5, (+ 5 5) = 10
+        // step 2: it=10, (* 10 2) = 20
+        assert_eq!(result, Value::Int(20));
+    }
+
+    #[test]
+    fn thread_first_nested_pipeline() {
+        let result = run("(-> (-> 1 (+ 2)) (* 3))");
+        // inner: (+ 1 2) = 3, outer: (* 3 3) = 9
+        assert_eq!(result, Value::Int(9));
+    }
+
+    #[test]
+    fn thread_first_override_evaluates() {
+        let result = run("(-> 10 (+ 2) ->> (- 3))");
+        // step 1 ->: (+ 10 2) = 12
+        // step 2 ->>: (- 3 12) = -9
+        assert_eq!(result, Value::Int(-9));
+    }
+
+    #[test]
+    fn behold_inside_threading_untouched() {
+        assert_eq!(desugared("(behold (-> x f g))"), "(behold (-> x f g))");
     }
 }

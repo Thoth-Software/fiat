@@ -463,10 +463,10 @@ This milestone adds string processing and the threading operators to the desugar
 - [x] `as-codepoints` — string to cons chain of integer codepoints
 - [x] `as-bytes` — string to cons chain of byte values
 - [x] `from-codepoints` — cons chain of codepoints to string
-- [ ] `->` thread-first desugaring: insert threaded value as first argument
-- [ ] `->>` thread-last desugaring: insert threaded value as last argument
-- [ ] `name->` thread-as desugaring: insert wherever the binding name appears
-- [ ] Per-step operator override within a threading pipeline
+- [x] `->` thread-first desugaring: insert threaded value as first argument
+- [x] `->>` thread-last desugaring: insert threaded value as last argument
+- [x] `name->` thread-as desugaring: insert wherever the binding name appears
+- [x] Per-step operator override within a threading pipeline
 - [ ] **Level 3 benchmarks pass**
 
 ### 9. Result Type Conventions [Level 4]
