@@ -988,6 +988,23 @@ mod tests {
     }
 
     #[test]
+    fn int_parse_ok_after_import() {
+        assert_eq!(
+            eval_str("(fiat Lux) (Map/get (Int/parse \"42\") :ok :missing)").ok(),
+            Some(Value::Int(42))
+        );
+    }
+
+    #[test]
+    fn int_parse_err_after_import() {
+        // A non-numeric string yields a map with no :ok key.
+        assert_eq!(
+            eval_str("(fiat Lux) (Map/get (Int/parse \"abc\") :ok :missing)").ok(),
+            Some(Value::Keyword(InternedSymbol::new("missing")))
+        );
+    }
+
+    #[test]
     fn math_sqrt_of_int() {
         assert_eq!(
             eval_str("(fiat Lux) (Math/sqrt 9)").ok(),
