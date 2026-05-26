@@ -1,0 +1,51 @@
+;; List — Lux standard-library module.
+;;
+;; Namespaced wrappers over the kernel list operations and the self-hosted
+;; prelude, so that `(fiat Lux)` exposes the documented `List/` API. The bare
+;; forms (`first`, `rest`, `bind`, …) and prelude functions (`map`, `filter`,
+;; `fold`, …) remain available; these are thin aliases that preserve the
+;; underlying argument order.
+;;
+;; `list` is intentionally absent: there is no variadic constructor in the
+;; kernel, and Fiat functions take a fixed parameter list. Build lists with
+;; `bind` and the `'(...)` quote form instead.
+
+;; List/first — head of a non-empty list
+(fiat List/first (lst) (first lst))
+
+;; List/rest — tail of a list (() for an empty list)
+(fiat List/rest (lst) (rest lst))
+
+;; List/bind — prepend `x` to `lst`
+(fiat List/bind (x lst) (bind x lst))
+
+;; List/empty? — true when the list has no elements
+(fiat List/empty? (lst) (atom? lst))
+
+;; List/length — number of elements
+(fiat List/length (lst) (length lst))
+
+;; List/nth — zero-based element access
+(fiat List/nth (lst n)
+  (choose
+    ((= n 0) (first lst))
+    (true (List/nth (rest lst) (- n 1)))))
+
+;; List/reverse — elements in reverse order
+(fiat List/reverse (lst) (reverse lst))
+
+;; List/append — concatenate two lists
+(fiat List/append (xs ys) (append xs ys))
+
+;; List/map — apply `f` to every element
+(fiat List/map (f lst) (map f lst))
+
+;; List/filter — keep elements satisfying `pred`
+(fiat List/filter (pred lst) (filter pred lst))
+
+;; List/fold — reduce left to right from `acc`
+(fiat List/fold (f acc lst) (fold f acc lst))
+
+;; List/sort — stable sort; `compare` is true when its first argument
+;; should precede its second
+(fiat List/sort (compare lst) (sort compare lst))
