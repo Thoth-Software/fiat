@@ -327,6 +327,10 @@ When positional or per-character access is needed, the user explicitly converts 
 - `as-graphemes` — returns a list of single-grapheme strings. Each element is one visual character as perceived by a human reader, determined by the Unicode grapheme segmentation algorithm. Appropriate for user-facing text manipulation.
 - `as-bytes` — returns a list of integer byte values. The raw UTF-8 encoding. Appropriate for binary protocol work or encoding-level manipulation.
 
+The inverse conversion rebuilds a string from codepoints:
+
+- `from-codepoints` — the inverse of `as-codepoints`: takes a list of integer codepoints and returns the corresponding string. Each integer must be a valid Unicode scalar value; an out-of-range or negative integer, or a non-integer element, raises an error. For example, `(from-codepoints '(72 101 108 108 111))` yields `"Hello"`, and `(from-codepoints (as-codepoints s))` round-trips any string `s`.
+
 This design avoids a problem that has no good default answer: what "the fifth character" means in a Unicode string. Rather than choosing a default that will be wrong in some contexts, Fiat makes the choice explicit. The cost of each abstraction level is visible in the code, and the threading macro `->` makes the conversion step read naturally as part of a pipeline:
 
 ```lisp
