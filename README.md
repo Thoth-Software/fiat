@@ -12,6 +12,60 @@ Fiat is a homoiconic Lisp dialect with its core implemented in Rust. It targets 
 Fiat's design priorities, in order, are: token efficiency for LLM generation, readability for human inspection, and round-trip stability for the cycle of generation → reading → editing → re-generation.
 
 
+## Building and Running
+
+Fiat builds to a single self-contained binary — the standard library and prelude are embedded at compile time, so there are no runtime files to ship alongside it.
+
+```sh
+cargo build --release        # produces target/release/fiat
+```
+
+To use `fiat` as a command-line tool anywhere, copy the binary onto your `PATH`. On macOS, `/bin` is protected by System Integrity Protection and is not writable; use `/usr/local/bin` (Intel) or `/opt/homebrew/bin` (Apple Silicon) instead — both are on `PATH` by default:
+
+```sh
+cp target/release/fiat /usr/local/bin/    # or /opt/homebrew/bin on Apple Silicon
+```
+
+On Linux, `~/.local/bin` or `/usr/local/bin` work the same way. Alternatively, `cargo install --path .` places `fiat` in `~/.cargo/bin`.
+
+### Usage
+
+```sh
+fiat                 # start the REPL (prelude loaded)
+fiat lux             # start the REPL with the Lux standard library imported
+fiat path/to.fiat    # run a Fiat source file, printing the final value
+fiat --no-prelude …  # use a bare environment (Levels 0 and 6 run this way)
+fiat --help          # full usage
+fiat --version       # version
+```
+
+The REPL reads a form and evaluates it on Enter; multi-line forms continue (with a `...` prompt) until the parentheses balance. Ctrl-D exits, and command history persists in `~/.fiat_history`. `fiat lux` is the quickest way to explore the language interactively — `String/*`, `Map/*`, `Math/*`, and the rest of Lux are available immediately, without typing `(fiat Lux)` first.
+
+### The REPL
+
+The REPL is a read-eval-print loop built on the same pipeline the file runner uses: each submitted form is desugared, evaluated, and its result printed. It lives in `src/main.rs` and is started by `fiat` (prelude only) or `fiat lux` (prelude plus the Lux standard library pre-imported).
+
+**Line editing and history.** Input is handled by the [`rustyline`](https://crates.io/crates/rustyline) crate — a pure-Rust readline implementation (no GNU readline C dependency). It provides Emacs-style line editing (cursor movement, kill/yank), arrow-key recall of previous entries, and reverse search. History is loaded at startup and saved on exit to `~/.fiat_history` (resolved from `$HOME`), so it carries across sessions. `rustyline` is the only dependency the REPL adds beyond the interpreter core; the library and benchmark code do not depend on it.
+
+**Multi-line input.** After each line, the REPL attempts to parse the accumulated buffer. If the reader reports the input is *incomplete* — an unterminated list, vector, map, set, or string — the prompt switches to `  ... ` and another line is read, repeating until the form parses. This is how a definition like
+
+```lisp
+fiat> (fiat square (x)
+  ...   (* x x))
+<function square>
+fiat> (square 9)
+81
+```
+
+is entered across several lines. The distinction between "incomplete" and "malformed" input is made by inspecting the reader error: messages beginning with `unterminated` (or `unexpected end of input`) mean *keep reading*, while any other parse error (for example a stray `)`) is reported immediately and the buffer is discarded.
+
+**Evaluation semantics.** A submitted buffer may contain more than one form; each is evaluated in order and every result is printed, against a single persistent environment, so bindings made earlier in the session remain visible later. Because a named `(fiat name …)` declaration returns the function value, defining a function echoes `<function name>` — confirming the binding took. Evaluation errors are printed (`error: …`) without ending the session.
+
+**Signals.** Ctrl-C abandons the current (possibly multi-line) input and returns to a fresh `fiat> ` prompt; Ctrl-D at the prompt saves history and exits. Both behaviours come from `rustyline`'s `Interrupted` and `Eof` signals.
+
+**Environments.** `fiat` loads the self-hosted prelude (`map`, `filter`, `fold`, `sort`, …); `fiat lux` additionally evaluates `(fiat Lux)` once at startup so namespaced standard-library functions resolve without an explicit import; `fiat --no-prelude` starts from a bare environment for experimenting with just the primitive kernel. In every case Firmamentum is registered (standalone scripting mode), so `(fiat Firmamentum)` and the `Fs/*` capabilities are available.
+
+
 ## Interpreter Architecture: Bootstrap and Final Pipeline
 
 Fiat's final architecture processes source through three stages: reading, macro expansion, and evaluation. However, the initial interpreter uses a smaller bootstrap pipeline so the evaluator can come online before the full hygienic macro system exists.
