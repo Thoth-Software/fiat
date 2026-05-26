@@ -12,6 +12,36 @@ Fiat is a homoiconic Lisp dialect with its core implemented in Rust. It targets 
 Fiat's design priorities, in order, are: token efficiency for LLM generation, readability for human inspection, and round-trip stability for the cycle of generation → reading → editing → re-generation.
 
 
+## Building and Running
+
+Fiat builds to a single self-contained binary — the standard library and prelude are embedded at compile time, so there are no runtime files to ship alongside it.
+
+```sh
+cargo build --release        # produces target/release/fiat
+```
+
+To use `fiat` as a command-line tool anywhere, copy the binary onto your `PATH`. On macOS, `/bin` is protected by System Integrity Protection and is not writable; use `/usr/local/bin` (Intel) or `/opt/homebrew/bin` (Apple Silicon) instead — both are on `PATH` by default:
+
+```sh
+cp target/release/fiat /usr/local/bin/    # or /opt/homebrew/bin on Apple Silicon
+```
+
+On Linux, `~/.local/bin` or `/usr/local/bin` work the same way. Alternatively, `cargo install --path .` places `fiat` in `~/.cargo/bin`.
+
+### Usage
+
+```sh
+fiat                 # start the REPL (prelude loaded)
+fiat lux             # start the REPL with the Lux standard library imported
+fiat path/to.fiat    # run a Fiat source file, printing the final value
+fiat --no-prelude …  # use a bare environment (Levels 0 and 6 run this way)
+fiat --help          # full usage
+fiat --version       # version
+```
+
+The REPL reads a form and evaluates it on Enter; multi-line forms continue (with a `...` prompt) until the parentheses balance. Ctrl-D exits, and command history persists in `~/.fiat_history`. `fiat lux` is the quickest way to explore the language interactively — `String/*`, `Map/*`, `Math/*`, and the rest of Lux are available immediately, without typing `(fiat Lux)` first.
+
+
 ## Interpreter Architecture: Bootstrap and Final Pipeline
 
 Fiat's final architecture processes source through three stages: reading, macro expansion, and evaluation. However, the initial interpreter uses a smaller bootstrap pipeline so the evaluator can come online before the full hygienic macro system exists.

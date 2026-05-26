@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 im-rc = "15"
+rustyline = "14"
 
 [lints.rust]
 unsafe_code = "deny"
