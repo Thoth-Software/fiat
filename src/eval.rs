@@ -399,7 +399,11 @@ fn builtin_add(args: &[Value]) -> Result<Value, Error> {
     numeric_binop(
         "+",
         args,
-        |a, b| Ok(Value::Int(a + b)),
+        |a, b| {
+            a.checked_add(b)
+                .map(Value::Int)
+                .ok_or_else(|| Error::integer_overflow("+"))
+        },
         |a, b| Ok(Value::Float(a + b)),
     )
 }
@@ -408,7 +412,11 @@ fn builtin_sub(args: &[Value]) -> Result<Value, Error> {
     numeric_binop(
         "-",
         args,
-        |a, b| Ok(Value::Int(a - b)),
+        |a, b| {
+            a.checked_sub(b)
+                .map(Value::Int)
+                .ok_or_else(|| Error::integer_overflow("-"))
+        },
         |a, b| Ok(Value::Float(a - b)),
     )
 }
@@ -417,7 +425,11 @@ fn builtin_mul(args: &[Value]) -> Result<Value, Error> {
     numeric_binop(
         "*",
         args,
-        |a, b| Ok(Value::Int(a * b)),
+        |a, b| {
+            a.checked_mul(b)
+                .map(Value::Int)
+                .ok_or_else(|| Error::integer_overflow("*"))
+        },
         |a, b| Ok(Value::Float(a * b)),
     )
 }
@@ -430,7 +442,9 @@ fn builtin_div(args: &[Value]) -> Result<Value, Error> {
             if b == 0 {
                 Err(Error::division_by_zero())
             } else {
-                Ok(Value::Int(a / b))
+                a.checked_div(b)
+                    .map(Value::Int)
+                    .ok_or_else(|| Error::integer_overflow("/"))
             }
         },
         |a, b| {
@@ -451,7 +465,9 @@ fn builtin_rem(args: &[Value]) -> Result<Value, Error> {
             if b == 0 {
                 Err(Error::division_by_zero())
             } else {
-                Ok(Value::Int(a % b))
+                a.checked_rem(b)
+                    .map(Value::Int)
+                    .ok_or_else(|| Error::integer_overflow("%"))
             }
         },
         |a, b| {
@@ -749,6 +765,27 @@ mod tests {
     #[test]
     fn eval_division_by_zero() {
         assert!(eval_str("(/ 1 0)").is_err());
+    }
+
+    #[test]
+    fn eval_integer_overflow_is_error_not_panic() {
+        // Each integer op surfaces overflow as a clean interpreter error
+        // rather than panicking (debug) or wrapping silently (release).
+        assert!(eval_str("(* 9000000000000000000 9000000000000000000)").is_err());
+        assert!(eval_str("(+ 9223372036854775807 1)").is_err());
+        assert!(eval_str("(- -9223372036854775808 1)").is_err());
+        // i64::MIN / -1 and i64::MIN % -1 also overflow.
+        assert!(eval_str("(/ -9223372036854775808 -1)").is_err());
+        assert!(eval_str("(% -9223372036854775808 -1)").is_err());
+    }
+
+    #[test]
+    fn eval_arithmetic_at_int_bounds_succeeds() {
+        // Operations that stay in range still work.
+        assert_eq!(
+            eval_str("(+ 9223372036854775806 1)").ok(),
+            Some(Value::Int(9223372036854775807))
+        );
     }
 
     #[test]
