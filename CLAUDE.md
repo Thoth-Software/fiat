@@ -11,7 +11,7 @@ Before writing any code, you must adhere to these strict constraints:
 * **The `is?` Rule:** The `is?` primitive uses pointer identity. Do NOT implement deep-equality traits to try and make collections equal. `is?` must throw a runtime interpreter error if called on a collection.
 * **Empty List Identity:** The empty list `()` parses strictly to `Value::Nil`. `Nil` is an atom (`atom?` returns true). Do not create a separate empty list variant.
 * **Cons-Lists vs. Vectors:** Fiat strictly separates lists (recursive cons-cells) from vectors (indexed arrays). Primitives like `first`, `rest`, and `bind` must ONLY accept `List` or `Nil`. Do not make them polymorphic over `Vector`.
-* **Explicit Result Types:** Do not use Rust panics for expected Fiat runtime errors (like division by zero, parsing failures, or I/O errors). Fallible operations must return a Fiat-level result map: `{:ok value}` or `{:err reason}`.
+* **Explicit Result Types:** Do not use Rust panics for expected Fiat conditions. Distinguish two kinds of failure. *Programmer errors* — division by zero, unbound symbols, type mismatches, calling `first` on an empty list — are raised as interpreter errors (e.g. `Error::division_by_zero()`); they abort evaluation and are not recoverable from within Fiat. *Recoverable operations* — file and network I/O, parsing externally supplied input — must instead return a Fiat-level result map: `{:ok value}` or `{:err reason}`. In neither case may a Rust panic stand in for an expected runtime condition.
 
 ## 2. The Development Loop
 Whenever you write or modify code, you must strictly follow this step-by-step verification process before finalizing your response:
