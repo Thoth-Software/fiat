@@ -313,30 +313,29 @@ fiat/
 ├── Cargo.toml
 ├── README.md
 ├── src/
-│   ├── main.rs              # REPL, file runner (evaluates sequence of forms), CLI
+│   ├── main.rs              # CLI entry: REPL, file runner, `lux` subcommand
+│   ├── lib.rs               # Crate root: module declarations and public API
 │   ├── value.rs             # Value enum, Cons struct, Keyword, Display, PartialEq
 │   ├── env.rs               # Env with RefCell<HashMap>, scope chain, lookup
 │   ├── error.rs             # Runtime error type and common error constructors
 │   ├── reader.rs            # Source text → Value (recursive descent, list_from_vec)
 │   ├── printer.rs           # Value → source text (inverse of reader)
 │   ├── desugar.rs           # Minimal desugar pass: let, threading macros
-│   ├── eval.rs              # Evaluator: 8 primitives, function application, TCO
-│   ├── builtins.rs          # Numeric builtins, logical ops, registered Rust functions
-│   ├── modules/
-│   │   ├── mod.rs            # Module registry and loader
-│   │   ├── lux.rs            # Lux standard library bindings
-│   │   ├── string.rs         # String module (split, trim, upcase, etc.)
-│   │   ├── map.rs            # Map module (get, put, merge, entries, etc.)
-│   │   ├── set.rs            # Set module (union, intersect, membership)
-│   │   ├── vector.rs         # Vector module (append, nth, to-list, etc.)
-│   │   ├── math.rs           # Math module (sqrt, etc.)
-│   │   ├── int.rs            # Int module (parse, to-string)
-│   │   ├── float.rs          # Float module (to-string)
-│   │   └── firmamentum.rs    # Scripting I/O bindings (Fs, Process, Net)
-│   ├── macros/
-│   │   ├── mod.rs            # Full hygienic macro expander (later milestone)
-│   │   └── threading.rs      # Threading macro logic (shared with desugar)
-│   └── prelude.fiat          # Self-hosted prelude: map, filter, fold, let, etc.
+│   ├── eval.rs              # Evaluator: 8 primitives, arithmetic/set builtins, application, TCO
+│   ├── prelude.rs           # Loader for the embedded self-hosted prelude
+│   ├── prelude.fiat         # Self-hosted prelude: map, filter, fold, sort, etc.
+│   └── modules/
+│       ├── mod.rs            # Module registry, Lux loader, capability gating
+│       ├── string.rs         # String module (split, trim, upcase, etc.)
+│       ├── map.rs            # Map module (get, put, merge, entries, etc.)
+│       ├── vector.rs         # Vector module (append, nth, to-list, etc.)
+│       ├── math.rs           # Math module (sqrt, etc.)
+│       ├── int.rs            # Int module (parse, to-string)
+│       ├── float.rs          # Float module (to-string)
+│       └── firmamentum.rs    # Scripting I/O bindings (Fs, Process, Net)
+├── lib/                      # Self-hosted Lux modules (Fiat source, loaded by `fiat Lux`)
+│   ├── Set.fiat              # Set/ namespace over the set primitives
+│   └── List.fiat             # List/ namespace over list ops and prelude functions
 ├── tests/
 │   ├── level0_primitives.rs
 │   ├── level1_closures.rs
@@ -356,7 +355,8 @@ fiat/
     ├── level5.fiat
     ├── level6.fiat
     ├── level7.fiat
-    └── level8.fiat
+    ├── level8.fiat
+    └── employees.csv         # Fixture for the Level 8 file-processing benchmark
 ```
 
 
