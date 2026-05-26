@@ -1,5 +1,7 @@
 # Fiat — Language Reference
 
+> **Note:** This document specifies the *completed* Fiat language. The features described here represent the final design target, written in the present tense for clarity. The current interpreter may not yet implement every component (for example, the bootstrap pipeline desugars `let` and the threading forms rather than expanding them through a hygienic macro expander). For the state of the implementation and the milestone roadmap, consult the README.
+
 ## What Fiat Is
 
 Fiat is a homoiconic Lisp dialect with its core implemented in Rust. It targets two use cases: general-purpose scripting (replacing bash, Python, Perl) and embeddable scripting for the Orpheus game engine (occupying the same role as Lua).
