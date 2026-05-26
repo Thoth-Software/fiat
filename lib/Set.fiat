@@ -1,0 +1,21 @@
+;; Set — Lux standard-library module.
+;;
+;; Namespaced wrappers over the kernel set primitives, so that `(fiat Lux)`
+;; exposes the documented `Set/` API. The bare primitives (`set?`, `has?`,
+;; `union`, `intersect`, `without`) remain available; these are thin aliases
+;; that preserve the underlying argument order.
+
+;; Set/set? — true when the value is a set
+(fiat Set/set? (x) (set? x))
+
+;; Set/has? — true when element `x` is a member of set `s`
+(fiat Set/has? (x s) (has? x s))
+
+;; Set/union — every element in either set
+(fiat Set/union (a b) (union a b))
+
+;; Set/intersect — elements common to both sets
+(fiat Set/intersect (a b) (intersect a b))
+
+;; Set/without — elements of `a` that are not in `b` (set difference)
+(fiat Set/without (a b) (without a b))
