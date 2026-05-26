@@ -18,6 +18,7 @@ use crate::value::{Builtin, BuiltinFn, InternedSymbol, Value};
 /// runtime file dependency. These wrap kernel primitives and prelude
 /// functions under their documented namespaces.
 const SET_SOURCE: &str = include_str!("../../lib/Set.fiat");
+const LIST_SOURCE: &str = include_str!("../../lib/List.fiat");
 
 struct Entry {
     name: &'static str,
@@ -123,8 +124,10 @@ pub fn import_lux(env: &Rc<Env>) -> Result<Value, Error> {
             }),
         );
     }
-    let forms = read(SET_SOURCE)?;
-    eval_program(&forms, env)?;
+    for source in [SET_SOURCE, LIST_SOURCE] {
+        let forms = read(source)?;
+        eval_program(&forms, env)?;
+    }
     Ok(Value::Nil)
 }
 
@@ -180,6 +183,38 @@ mod tests {
         assert_eq!(
             eval_with_lux("(Set/has? 2 (Set/without #{1 2} #{1}))"),
             Value::Bool(true)
+        );
+    }
+
+    #[test]
+    fn list_module_namespaces_primitives() {
+        assert_eq!(eval_with_lux("(List/first '(1 2 3))"), Value::Int(1));
+        assert_eq!(eval_with_lux("(List/rest '(1 2 3))").to_string(), "(2 3)");
+        assert_eq!(eval_with_lux("(List/bind 0 '(1 2))").to_string(), "(0 1 2)");
+        assert_eq!(eval_with_lux("(List/empty? ())"), Value::Bool(true));
+        assert_eq!(eval_with_lux("(List/empty? '(1))"), Value::Bool(false));
+        assert_eq!(eval_with_lux("(List/length '(a b c))"), Value::Int(3));
+        assert_eq!(eval_with_lux("(List/nth '(10 20 30) 1)"), Value::Int(20));
+        assert_eq!(
+            eval_with_lux("(List/reverse '(1 2 3))").to_string(),
+            "(3 2 1)"
+        );
+        assert_eq!(
+            eval_with_lux("(List/append '(1 2) '(3 4))").to_string(),
+            "(1 2 3 4)"
+        );
+        assert_eq!(
+            eval_with_lux("(List/map (fiat () (x) (* x 2)) '(1 2 3))").to_string(),
+            "(2 4 6)"
+        );
+        assert_eq!(
+            eval_with_lux("(List/filter (fiat () (x) (> x 2)) '(1 2 3 4))").to_string(),
+            "(3 4)"
+        );
+        assert_eq!(eval_with_lux("(List/fold + 0 '(1 2 3 4))"), Value::Int(10));
+        assert_eq!(
+            eval_with_lux("(List/sort (fiat () (a b) (< a b)) '(3 1 2))").to_string(),
+            "(1 2 3)"
         );
     }
 }
