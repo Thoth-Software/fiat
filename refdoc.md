@@ -335,7 +335,7 @@ This design avoids a problem that has no good default answer: what "the fifth ch
 
 ```lisp
 ;; count visible characters
-(-> name as-graphemes count)
+(-> name as-graphemes length)
 
 ;; get the first letter, uppercased
 (-> name as-graphemes first String/upcase)
@@ -401,7 +401,7 @@ The outer operator sets the default threading mode for the entire pipeline. Any 
 (->> some-list
      (filter odd?)   ;; ->>: (filter odd? some-list)
   -> (nth 3)         ;; ->:  (nth result 3)
-     (str "got: "))  ;; ->>: (str "got: " result)
+     (String/concat "got: "))  ;; ->>: (String/concat "got: " result)
 
 ;; Thread-as with explicit placement throughout.
 (it-> x
