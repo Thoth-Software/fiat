@@ -67,6 +67,13 @@ impl Error {
         }
     }
 
+    pub fn integer_overflow(op: &str) -> Self {
+        Self {
+            kind: ErrorKind::RuntimeError,
+            message: format!("integer overflow in {op}"),
+        }
+    }
+
     pub fn is_on_collection(type_name: &str) -> Self {
         Self {
             kind: ErrorKind::TypeError,
